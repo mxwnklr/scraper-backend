@@ -1,42 +1,34 @@
-from fastapi import FastAPI, Form
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-import os
 from script_runner import run_script
 
 app = FastAPI()
 
-# ✅ Allow CORS for Frontend
+# ✅ Allow requests from your frontend (Vercel domain)
+origins = [
+    "https://trustpilot-scraper.vercel.app",  # Replace with your frontend URL
+    "http://localhost:3000",  # For local testing
+]
+
+# ✅ Enable CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://trustpilot-scraper.vercel.app"],  # ✅ Ensure frontend is allowed
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
 )
 
-from fastapi import FastAPI, Form
-from fastapi.responses import FileResponse, JSONResponse
-from script_runner import run_script
-
-app = FastAPI()
-
 @app.post("/process/")
-async def process_script(
-    company_url: str = Form(...),
-    keywords: str = Form(...),
-    include_ratings: str = Form(...)
-):
-    output_file = run_script(company_url, keywords, include_ratings)
+async def process_script(company_url: str, keywords: str, include_ratings: str):
+    """Handles API requests for scraping Trustpilot"""
+    try:
+        output_file = run_script(company_url, keywords, include_ratings)
 
-    if not output_file:
-        return JSONResponse(
-            status_code=404,
-            content={"error": "No matching reviews found. Try different keywords or ratings."}
-        )
+        if output_file is None:
+            return {"error": "No matching reviews found"}
 
-    return FileResponse(
-        output_file,
-        filename="scraped_reviews.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        return {"file_url": output_file}
+
+    except Exception as e:
+        return {"error": f"Something went wrong: {str(e)}"}
