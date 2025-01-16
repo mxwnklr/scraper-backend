@@ -4,16 +4,11 @@ from script_runner import run_script
 
 app = FastAPI()
 
-# ✅ Allow requests from your frontend (Vercel domain)
-origins = [
-    "https://trustpilot-scraper.vercel.app",  # Replace with your frontend URL
-    "http://localhost:3000",  # For local testing
-]
 
 # ✅ Enable CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
