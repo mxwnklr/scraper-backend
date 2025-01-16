@@ -36,7 +36,7 @@ def scrape_trustpilot(company_url, keywords, include_ratings):
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
 
-            review_cards = soup.find_all("div", class_="styles_cardWrapper__LcCPA")
+            review_cards = soup.find_all("div", class_="styles_cardWrapper")
             print(f"🔍 Found {len(review_cards)} review cards")
 
             if not review_cards:
@@ -44,11 +44,11 @@ def scrape_trustpilot(company_url, keywords, include_ratings):
 
             for card in review_cards:
                 # ✅ Extract review text
-                comment_tag = card.find("p", class_="typography_body-l__KUYFJ")
+                comment_tag = card.find("p", class_="typography_body-l")
                 comment = comment_tag.get_text(strip=True) if comment_tag else "No review text"
 
                 # ✅ Extract rating
-                rating_tag = card.find("div", class_="star-rating_starRating__4rrcf")
+                rating_tag = card.find("div", class_="star-rating_starRating")
                 if rating_tag:
                     rating_text = rating_tag.find("img")["alt"]
                     rating_numbers = [word for word in rating_text.split() if word.isdigit()]
