@@ -46,7 +46,12 @@ def scrape_trustpilot(company_url, keywords, include_ratings):
             rating_tag = review_card.find("img")
             comment_tag = review_card.find("p", class_="typography_body-l__KUYFJ")
 
-            rating = int([word for word in rating_tag["alt"].split() if word.isdigit()][0]) if rating_tag else None
+            if rating_tag and "alt" in rating_tag.attrs:
+                rating_text = rating_tag["alt"]
+                rating_numbers = [word for word in rating_text.split() if word.isdigit()]
+                rating = int(rating_numbers[0]) if rating_numbers else None
+            else:
+                rating = None
             comment = comment_tag.get_text(strip=True) if comment_tag else ""
 
             matched_keywords = [k for k in keywords if k in comment.lower()]

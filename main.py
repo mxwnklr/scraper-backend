@@ -9,7 +9,7 @@ app = FastAPI()
 # ✅ Enable CORS for frontend (Vercel)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://trustpilot-scraper.vercel.app"],  # ✅ Allow frontend URL
+    allow_origins=["*"],  # ✅ Allow frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
