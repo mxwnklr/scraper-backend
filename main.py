@@ -26,7 +26,7 @@ async def process_script(
         output_file = run_script(company_url, keywords, include_ratings)
 
         if output_file is None or not os.path.exists(output_file):
-            return {"error": "No matching reviews found. Try different keywords or ratings."}
+            return {"No matching reviews found. Try different keywords or ratings."}
 
         return FileResponse(
             output_file,
