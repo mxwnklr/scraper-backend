@@ -1,124 +1,126 @@
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
-import time
 import os
+import time
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
-# Define a function to handle the scraping
-def run_script(company_url, keywords, include_ratings):
-    """
-    Scrapes Trustpilot reviews based on the given parameters.
-    - `company_url`: Trustpilot URL of the company.
-    - `keywords`: List of keywords to filter reviews.
-    - `include_ratings`: List of ratings (1-5) to include.
-    Returns: Path to the saved Excel file.
-    """
+# Helper Function: Generate unique filename
+def get_unique_filename(base_name):
+    """Generates a unique filename if the file already exists."""
+    if not os.path.exists(base_name):
+        return base_name
+    base, ext = os.path.splitext(base_name)
+    counter = 1
+    while os.path.exists(f"{base} ({counter}){ext}"):
+        counter += 1
+    return f"{base} ({counter}){ext}"
 
-    OUTPUT_FILE_BASE = "uploads/trustpilot_comments.xlsx"  # Output file directory
-    os.makedirs("uploads", exist_ok=True)  # Ensure the folder exists
-
-    # Function to generate a unique filename
-    def get_unique_filename(base_name):
-        if not os.path.exists(base_name):
-            return base_name
-        
-        base, ext = os.path.splitext(base_name)
-        counter = 1
-        while os.path.exists(f"{base} ({counter}){ext}"):
-            counter += 1
-        return f"{base} ({counter}){ext}"
-
-    # Fetch page content
-    def fetch_page_content(url):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0 Safari/537.36",
-            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"
-        }
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.text
-
-    # Parse reviews
-    def parse_reviews(html_content):
-        soup = BeautifulSoup(html_content, "html.parser")
-        reviews = []
-        
-        for review_card in soup.find_all("div", class_="styles_cardWrapper__LcCPA"):
-            rating_tag = review_card.find("div", class_="star-rating_starRating__4rrcf")
-            if rating_tag:
-                try:
-                    rating = int([word for word in rating_tag.find("img")["alt"].split() if word.isdigit()][0])
-                except IndexError:
-                    rating = None
-            else:
-                rating = None
-
-            comment_tag = review_card.find("p", class_="typography_body-l__KUYFJ")
-            comment = comment_tag.get_text(strip=True) if comment_tag else ""
-
-            link_tag = review_card.find("a", href=True)
-            link = f"https://de.trustpilot.com{link_tag['href']}" if link_tag else ""
-
-            date_tag = review_card.find("time", {"datetime": True})
-            review_date = date_tag["datetime"] if date_tag else ""
-
-            reviews.append({
-                "rating": rating,
-                "comment": comment,
-                "link": link,
-                "date": review_date
-            })
-        
-        return reviews
-
-    # Filter reviews by keywords and ratings
-    def filter_reviews(reviews, keywords, include_ratings):
-        filtered = []
-        for review in reviews:
-            matched_keywords = [keyword for keyword in keywords if keyword.lower() in review["comment"].lower()]
-            if review["rating"] in include_ratings and matched_keywords:
-                filtered.append({
-                    "Comment": review["comment"],
-                    "Rating": review["rating"],
-                    "Keyword": ", ".join(matched_keywords),
-                    "Link to Comment": review["link"],
-                    "Date": review["date"]
-                })
-        return filtered
-
-    # Start scraping
+# ✅ Trustpilot Scraper (Uses Requests + BeautifulSoup)
+def scrape_trustpilot(company_url, keywords, include_ratings):
+    reviews = []
     current_page = 1
-    all_filtered_reviews = []
-    print(f"Starting to scrape Trustpilot: {company_url}")
 
     while True:
         url = f"{company_url}?page={current_page}"
-        print(f"Fetching page {current_page}: {url}")
-        
-        try:
-            html_content = fetch_page_content(url)
-            reviews = parse_reviews(html_content)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-            if not reviews:
-                print("No more reviews found.")
-                break
+        for review_card in soup.find_all("div", class_="styles_cardWrapper__LcCPA"):
+            rating_tag = review_card.find("img")
+            comment_tag = review_card.find("p", class_="typography_body-l__KUYFJ")
 
-            filtered_reviews = filter_reviews(reviews, keywords, include_ratings)
-            all_filtered_reviews.extend(filtered_reviews)
+            rating = int([word for word in rating_tag["alt"].split() if word.isdigit()][0]) if rating_tag else None
+            comment = comment_tag.get_text(strip=True) if comment_tag else ""
 
-            current_page += 1
-            time.sleep(2)  # Avoid rate limits
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching page: {e}")
+            matched_keywords = [k for k in keywords if k in comment.lower()]
+            if rating in include_ratings and matched_keywords:
+                reviews.append({
+                    "Platform": "Trustpilot",
+                    "Review": comment,
+                    "Rating": rating,
+                    "Keywords": ", ".join(matched_keywords)
+                })
+
+        if not soup.find("div", class_="styles_cardWrapper__LcCPA"):
             break
+        current_page += 1
+        time.sleep(2)
 
-    # Save results
-    if all_filtered_reviews:
-        unique_file_name = get_unique_filename(OUTPUT_FILE_BASE)
-        df = pd.DataFrame(all_filtered_reviews)
-        df.to_excel(unique_file_name, index=False)
-        print(f"Filtered reviews saved to {unique_file_name}.")
-        return unique_file_name
+    filename = get_unique_filename("trustpilot_reviews.xlsx")
+    pd.DataFrame(reviews).to_excel(filename, index=False)
+    return filename
+
+# ✅ Google Reviews Scraper (Uses Selenium)
+def scrape_google(company_url, keywords, include_ratings):
+    options = Options()
+    options.add_argument("--headless")  # Run in headless mode (no UI)
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver.get(company_url)
+    time.sleep(3)  # Allow the page to load
+
+    reviews = []
+    review_cards = driver.find_elements(By.CLASS_NAME, "bwb7ce")  # Find all review elements
+
+    for card in review_cards:
+        try:
+            # Extract reviewer name
+            reviewer_name = card.find_element(By.CLASS_NAME, "Vpc5Fe").text
+
+            # Extract review text
+            review_text_element = card.find_elements(By.CLASS_NAME, "OA1nbd")
+            review_text = review_text_element[0].text if review_text_element else "No comment"
+
+            # Extract star rating (count the number of filled stars)
+            star_rating = len(card.find_elements(By.CLASS_NAME, "ePMStd"))
+
+            # Extract review date
+            review_date_element = card.find_elements(By.CLASS_NAME, "y3Ibjb")
+            review_date = review_date_element[0].text if review_date_element else "Unknown"
+
+            # Extract review link
+            review_link_element = card.find_elements(By.CLASS_NAME, "yC3ZMb")
+            review_link = review_link_element[0].get_attribute("href") if review_link_element else "No link"
+
+            # Check if review contains keywords and matches rating criteria
+            matched_keywords = [k for k in keywords if k.lower() in review_text.lower()]
+            if star_rating in include_ratings and matched_keywords:
+                reviews.append({
+                    "Platform": "Google Reviews",
+                    "Reviewer": reviewer_name,
+                    "Review": review_text,
+                    "Rating": star_rating,
+                    "Date": review_date,
+                    "Link": review_link,
+                    "Keywords": ", ".join(matched_keywords)
+                })
+
+        except Exception as e:
+            print(f"Error extracting review: {e}")
+            continue
+
+    driver.quit()
+
+    filename = get_unique_filename("google_reviews.xlsx")
+    pd.DataFrame(reviews).to_excel(filename, index=False)
+    return filename
+
+# ✅ Main Runner: Calls the Correct Scraper Based on User Selection
+def run_script(platform, company_url, keywords, include_ratings):
+    keywords = keywords.split(",")
+    include_ratings = list(map(int, include_ratings.split(",")))
+
+    if platform == "trustpilot":
+        return scrape_trustpilot(company_url, keywords, include_ratings)
+    elif platform == "google":
+        return scrape_google(company_url, keywords, include_ratings)
     else:
-        print("No reviews matched the criteria.")
-        return None
+        raise ValueError("Invalid platform selected")
