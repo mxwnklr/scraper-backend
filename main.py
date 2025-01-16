@@ -15,7 +15,11 @@ app.add_middleware(
 )
 
 @app.post("/process/")
-async def process_script(company_url: str, keywords: str, include_ratings: str):
+async def process_script(
+    company_url: str = Form(...),
+    keywords: str = Form(...),
+    include_ratings: str = Form(...),
+):
     """Handles API requests for scraping Trustpilot"""
     try:
         output_file = run_script(company_url, keywords, include_ratings)
