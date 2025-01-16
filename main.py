@@ -17,13 +17,12 @@ app.add_middleware(
 
 @app.post("/process/")
 async def process_script(
-    platform: str = Form(...),
     company_url: str = Form(...),
     keywords: str = Form(...),
     include_ratings: str = Form(...)
 ):
     """Processes scraping request and returns the scraped Excel file."""
-    output_file = run_script(platform, company_url, keywords, include_ratings)
+    output_file = run_script(company_url, keywords, include_ratings)
 
     if output_file and os.path.exists(output_file):
         return FileResponse(

@@ -3,11 +3,6 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import os
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 
 # ✅ Helper Function: Ensure Unique Filename
 def get_unique_filename(base_name):
@@ -74,7 +69,6 @@ def scrape_trustpilot(company_url, keywords, include_ratings):
                 matched_keywords = [k for k in keywords if k.lower() in comment.lower()]
                 if rating in include_ratings and matched_keywords:
                     all_reviews.append({
-                        "Platform": "Trustpilot",
                         "Review": comment,
                         "Rating": rating,
                         "Keywords": ", ".join(matched_keywords),
@@ -99,80 +93,10 @@ def scrape_trustpilot(company_url, keywords, include_ratings):
     return filename
 
 
-# ✅ GOOGLE REVIEWS SCRAPER
-def scrape_google(company_url, keywords, include_ratings):
-    """Scrapes Google Reviews using Selenium."""
-    
-    print(f"🟡 Fetching Google reviews from {company_url}")
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get(company_url)
-    time.sleep(5)  # Let the page load
-
-    review_cards = driver.find_elements(By.CSS_SELECTOR, "div.bwb7ce")
-    print(f"🔍 Found {len(review_cards)} Google review cards")
-
-    if not review_cards:
-        print("❌ No reviews found on this Google page.")
-        driver.quit()
-        return None
-
-    all_reviews = []
-    for card in review_cards:
-        try:
-            reviewer_name = card.find_element(By.CLASS_NAME, "Vpc5Fe").text
-            review_text_element = card.find_elements(By.CLASS_NAME, "OA1nbd")
-            review_text = review_text_element[0].text if review_text_element else "No review text"
-            star_rating = len(card.find_elements(By.CLASS_NAME, "ePMStd"))
-
-            # ✅ Extract review link
-            link_tag = card.find_elements(By.TAG_NAME, "a")
-            review_link = link_tag[0].get_attribute("href") if link_tag else "N/A"
-
-            # ✅ Extract publish date
-            date_tag = card.find_elements(By.CLASS_NAME, "y3Ibjb")
-            publish_date = date_tag[0].text if date_tag else "N/A"
-
-            matched_keywords = [k for k in keywords if k.lower() in review_text.lower()]
-            if star_rating in include_ratings and matched_keywords:
-                all_reviews.append({
-                    "Platform": "Google Reviews",
-                    "Review": review_text,
-                    "Rating": star_rating,
-                    "Keywords": ", ".join(matched_keywords),
-                    "Publish Date": publish_date,
-                    "Review Link": review_link
-                })
-
-        except Exception as e:
-            print(f"❌ Error extracting review: {e}")
-
-    driver.quit()
-
-    if not all_reviews:
-        print("❌ No matching Google reviews found!")
-        return None
-
-    filename = get_unique_filename("google_reviews.xlsx")
-    pd.DataFrame(all_reviews).to_excel(filename, index=False)
-    print(f"✅ Scraped {len(all_reviews)} reviews into {filename}")
-    return filename
-
-
-# ✅ MAIN RUNNER FUNCTION
-def run_script(platform, company_url, keywords, include_ratings):
-    """Runs the correct scraper based on user selection."""
+# ✅ MAIN RUNNER FUNCTION (Only Trustpilot)
+def run_script(company_url, keywords, include_ratings):
+    """Runs the Trustpilot scraper (Google removed)."""
     keywords = keywords.split(",")
     include_ratings = list(map(int, include_ratings.split(",")))
 
-    if platform == "trustpilot":
-        return scrape_trustpilot(company_url, keywords, include_ratings)
-    elif platform == "google":
-        return scrape_google(company_url, keywords, include_ratings)
-    else:
-        raise ValueError("❌ Invalid platform selected")
+    return scrape_trustpilot(company_url, keywords, include_ratings)
