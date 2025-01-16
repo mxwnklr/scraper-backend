@@ -5,3 +5,5 @@ beautifulsoup4
 pandas
 openpyxl
 python-multipart
+selenium
+webdriver-manager
