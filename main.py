@@ -1,15 +1,15 @@
 from fastapi import FastAPI, Form
-from fastapi.middleware.cors import CORSMiddleware  # ✅ Import CORS Middleware
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
 from script_runner import run_script
 
 app = FastAPI()
 
-# ✅ Enable CORS for frontend (Vercel)
+# ✅ Allow CORS for Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ✅ Allow frontend URL
+    allow_origins=["https://trustpilot-scraper.vercel.app"],  # ✅ Ensure frontend is allowed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,9 +22,7 @@ async def process_script(
     keywords: str = Form(...),
     include_ratings: str = Form(...)
 ):
-    """
-    Process the scraping request and return the Excel file.
-    """
+    """Processes scraping request and returns the scraped Excel file."""
     output_file = run_script(platform, company_url, keywords, include_ratings)
 
     if output_file and os.path.exists(output_file):
