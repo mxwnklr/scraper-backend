@@ -1,23 +1,19 @@
 from fastapi import FastAPI, Form
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware  # ✅ Import CORS Middleware
 from fastapi.responses import FileResponse
-from script_runner import run_script
 import os
+from script_runner import run_script
 
 app = FastAPI()
 
-# ✅ Enable CORS (Allow Frontend to Access Backend)
+# ✅ Enable CORS for frontend (Vercel)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⬅️ Change "*" to restrict specific domains if needed
+    allow_origins=["https://trustpilot-scraper.vercel.app"],  # ✅ Allow frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.get("/")
-def read_root():
-    return {"message": "Review Scraper API is running 🚀"}
 
 @app.post("/process/")
 async def process_script(
