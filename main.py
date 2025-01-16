@@ -15,20 +15,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import FastAPI, Form
+from fastapi.responses import FileResponse, JSONResponse
+from script_runner import run_script
+
+app = FastAPI()
+
 @app.post("/process/")
 async def process_script(
     company_url: str = Form(...),
     keywords: str = Form(...),
     include_ratings: str = Form(...)
 ):
-    """Processes scraping request and returns the scraped Excel file."""
     output_file = run_script(company_url, keywords, include_ratings)
 
-    if output_file and os.path.exists(output_file):
-        return FileResponse(
-            output_file,
-            filename=output_file,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if not output_file:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "No matching reviews found. Try different keywords or ratings."}
         )
-    else:
-        return {"error": "No reviews found or failed to generate file. Please check your input."}
+
+    return FileResponse(
+        output_file,
+        filename="scraped_reviews.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
