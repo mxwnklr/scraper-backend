@@ -1,81 +1,82 @@
-import os
 import requests
+import os
 import re
-from dotenv import load_dotenv
 import pandas as pd
+from dotenv import load_dotenv
 
-# ✅ Load API Key from .env file
-load_dotenv()
-API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# ✅ Expand Short Google Maps URL
-def expand_google_maps_short_url(short_url):
-    """Expands a Google Maps short URL to a full URL."""
+# ✅ Extracts Google Place ID from a long or short Google Maps URL
+def get_place_id(google_maps_url):
+    """Extracts the Place ID from a Google Maps URL using Google Places API."""
     try:
-        response = requests.get(short_url, allow_redirects=True)
-        return response.url  # Returns the final redirected URL
-    except requests.exceptions.RequestException:
-        return None
+        # 🔄 Handle short URL by expanding it
+        if "maps.app.goo.gl" in google_maps_url:
+            print("🔄 Expanding short URL...")
+            response = requests.get(google_maps_url, allow_redirects=True)
+            google_maps_url = response.url  # Gets final redirected URL
 
-# ✅ Extract Place ID from Full Google Maps URL
-def extract_place_id(full_url):
-    """Extracts the Place ID from a Google Maps URL."""
-    match = re.search(r"!1s([^!]+)", full_url)
-    if match:
-        return match.group(1)  # Extracts place_id from URL
+        # ✅ Extract place ID from long Google URL (if present)
+        match = re.search(r"!1s([^!]+)", google_maps_url)
+        if match:
+            place_id = match.group(1)
+            print(f"✅ Extracted Place ID from URL: {place_id}")
+            return place_id
+
+        # 🔎 If regex fails, fallback to Google Places API Search
+        print("🔎 Fetching Place ID using Google API...")
+        place_name = google_maps_url.split("/place/")[-1].split("/")[0]
+        search_url = f"https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input={place_name}&inputtype=textquery&fields=place_id&key={GOOGLE_API_KEY}"
+        
+        response = requests.get(search_url)
+        data = response.json()
+
+        if "candidates" in data and data["candidates"]:
+            place_id = data["candidates"][0]["place_id"]
+            print(f"✅ Found Place ID: {place_id}")
+            return place_id
+
+    except Exception as e:
+        print(f"❌ Error extracting Place ID: {e}")
+    
     return None
 
-# ✅ Fetch Reviews from Google Places API
-def get_google_reviews(place_url, min_rating=0):
-    """Fetches reviews from Google Places API using a Google Maps URL."""
-
-    # 🔍 Step 1: Check if the URL is short and expand it
-    if "maps.app.goo.gl" in place_url:
-        print("🔄 Expanding short URL...")
-        place_url = expand_google_maps_short_url(place_url)
-
-    if not place_url:
-        print("❌ Invalid URL")
-        return None
-
-    # 🔍 Step 2: Extract Place ID
-    place_id = extract_place_id(place_url)
+# ✅ Fetch reviews using Google Place ID
+def get_google_reviews(google_maps_url, min_rating=0):
+    """Fetches Google reviews for a business using Place ID."""
+    place_id = get_place_id(google_maps_url)
     if not place_id:
-        print("❌ Could not extract Place ID")
+        print("❌ Could not retrieve Place ID")
         return None
 
-    # 🔍 Step 3: Call Google Places API for reviews
-    url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=name,reviews&key={API_KEY}"
+    print(f"🔎 Fetching reviews for Place ID: {place_id}")
+
+    reviews_url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=reviews&key={GOOGLE_API_KEY}"
     
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"❌ API Request Failed: {response.status_code}")
-        return None
-
+    response = requests.get(reviews_url)
     data = response.json()
-    reviews = data.get("result", {}).get("reviews", [])
 
-    if not reviews:
+    if "reviews" not in data["result"]:
         print("❌ No reviews found")
         return None
 
-    # 🔍 Step 4: Filter and Format Reviews
-    filtered_reviews = [
-        {
-            "Reviewer": review.get("author_name"),
-            "Rating": review.get("rating"),
-            "Review Text": review.get("text"),
-            "Review Date": review.get("relative_time_description"),
-        }
-        for review in reviews if review.get("rating", 0) >= min_rating
-    ]
+    all_reviews = []
+    for review in data["result"]["reviews"]:
+        rating = review["rating"]
+        if rating >= min_rating:
+            all_reviews.append({
+                "Reviewer": review.get("author_name", "Unknown"),
+                "Rating": rating,
+                "Review Text": review.get("text", "No text"),
+                "Review Date": review.get("time")
+            })
 
-    if not filtered_reviews:
-        print("❌ No reviews match the rating filter")
+    if not all_reviews:
+        print("❌ No reviews matching the rating filter")
         return None
 
-    # ✅ Step 5: Save to Excel
+    # ✅ Save results to an Excel file
     filename = "google_reviews.xlsx"
-    pd.DataFrame(filtered_reviews).to_excel(filename, index=False)
-    print(f"✅ Scraped {len(filtered_reviews)} reviews into {filename}")
+    pd.DataFrame(all_reviews).to_excel(filename, index=False)
+    print(f"✅ Scraped {len(all_reviews)} reviews into {filename}")
     return filename
