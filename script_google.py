@@ -7,23 +7,16 @@ import time
 import os
 import shutil
 
-# ✅ Use manually installed Chrome & ChromeDriver paths
-CHROME_PATH = "/opt/chrome/google-chrome"
-CHROMEDRIVER_PATH = "/opt/chromedriver/chromedriver"
-
-# ✅ Configure Selenium options
+# ✅ Chrome Options for Headless Mode
 options = webdriver.ChromeOptions()
-options.add_argument("--headless")  # Run in headless mode
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--headless")  # No UI
+options.add_argument("--no-sandbox")  # Required for Docker
+options.add_argument("--disable-dev-shm-usage")  # Prevent crashes
+options.add_argument("--disable-gpu")
+options.add_argument("--window-size=1920,1080")
 
-# ✅ Explicitly set Chrome binary path
-options.binary_location = CHROME_PATH
-
-# ✅ Initialize Selenium WebDriver with hardcoded paths
-driver = webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=options)
-
-print("✅ ChromeDriver successfully started with manually installed path!")
+# ✅ Use ChromeDriver inside the container
+driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"), options=options)
 
 # ✅ Function to Extract Google Review URLs
 def get_google_review_urls(search_term):
