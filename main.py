@@ -49,8 +49,8 @@ async def process_google_reviews(
     place_id: str = Form(...),
     min_rating: str = Form(None)
 ):
-    """Processes Google Reviews using the Place ID"""
-    print(f"🔍 Received Place ID: {place_id}, Min Rating: {min_rating}")
+    """Processes Google Reviews and returns an Excel file"""
+    print(f"🔍 Fetching reviews for Place ID: {place_id}, Min Rating: {min_rating}")
 
     try:
         output_file = get_google_reviews(place_id, min_rating)
