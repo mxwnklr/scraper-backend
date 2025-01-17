@@ -11,8 +11,11 @@ options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-# ✅ Setup WebDriver
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+# ✅ Manually set Chrome binary path
+options.binary_location = "/usr/bin/google-chrome-stable"
+
+# ✅ Initialize ChromeDriver with correct path
+driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"), options=options)
 
 # ✅ Function to Extract Google Review URLs
 def get_google_review_urls(search_term):
