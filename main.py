@@ -1,62 +1,56 @@
 from fastapi import FastAPI, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from dotenv import load_dotenv
+from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
-from script_google import scrape_google_reviews
-
-# ✅ Load environment variables
-load_dotenv()
 
 app = FastAPI()
 
-# ✅ CORS Middleware (Allow frontend to access API)
+# ✅ Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with frontend URL if needed
+    allow_origins=["*"],  # Replace with your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Trustpilot Scraper Endpoint
-@app.post("/trustpilot/")
+@app.post("/trustpilot")
 async def process_trustpilot(
     company_url: str = Form(...),
     keywords: str = Form(...),
     include_ratings: str = Form(...)
 ):
-    output_file = run_trustpilot_scraper(company_url, keywords, include_ratings)
-
-    if output_file is None or not os.path.exists(output_file):
-        return {"error": "❌ No matching reviews found on Trustpilot."}
-
-    return FileResponse(
-        output_file,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="trustpilot_reviews.xlsx"
-    )
-
-# ✅ Google Reviews Scraper Endpoint
-@app.post("/google")
-async def process_google_reviews(
-    business_name: str = Form(...),
-    location: str = Form(...),
-    min_rating: str = Form(...)
-):
-    """Processes Google Reviews request and returns an Excel file."""
+    """Processes Trustpilot scraping."""
     try:
-        output_file = scrape_google_reviews(business_name, location, min_rating)
+        output_file = run_trustpilot_scraper(company_url, keywords, include_ratings)
 
         if output_file is None or not os.path.exists(output_file):
-            return {"error": "No matching Google reviews found. Try another business or location."}
+            return JSONResponse(
+                status_code=404,
+                content={"error": "❌ No matching reviews found. Try different keywords or ratings."}
+            )
 
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename="google_reviews.xlsx"
+            filename="trustpilot_reviews.xlsx"
+        )
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"❌ Something went wrong: {str(e)}"}
         )
 
+@app.post("/google")
+async def process_google_reviews(place_url: str = Form(...), min_rating: str = Form(...)):
+    """Processes Google Reviews request."""
+    try:
+        output_file = get_google_reviews(place_url, int(min_rating))
+        if output_file is None or not os.path.exists(output_file):
+            return {"error": "❌ No matching reviews found."}
+        return FileResponse(output_file, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="google_reviews.xlsx")
     except Exception as e:
         return {"error": f"Something went wrong: {str(e)}"}
