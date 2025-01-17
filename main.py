@@ -45,16 +45,24 @@ async def process_trustpilot(
         )
 
 @app.post("/google")
-async def scrape_google_reviews(
-    google_maps_url: str = Form(...),
-    min_rating: int = Form(0)
+async def process_google_reviews(
+    place_id: str = Form(...),
+    min_rating: str = Form(None)
 ):
-    try:
-        output_file = get_google_reviews(google_maps_url, min_rating)
-        if not output_file:
-            return JSONResponse({"error": "❌ No reviews found. Try a different URL or location."}, status_code=200)
+    """Processes Google Reviews using the Place ID"""
+    print(f"🔍 Received Place ID: {place_id}, Min Rating: {min_rating}")
 
-        return FileResponse(output_file, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="google_reviews.xlsx")
+    try:
+        output_file = get_google_reviews(place_id, min_rating)
+
+        if output_file is None or not os.path.exists(output_file):
+            return {"error": "❌ No matching reviews found."}
+
+        return FileResponse(
+            output_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename="google_reviews.xlsx"
+        )
 
     except Exception as e:
-        return JSONResponse({"error": f"❌ Something went wrong: {str(e)}"}, status_code=500)
+        return {"error": f"❌ Something went wrong: {str(e)}"}
