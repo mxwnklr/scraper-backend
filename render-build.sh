@@ -1,40 +1,17 @@
-#!/usr/bin/env bash
+#!/bin/bash
+set -e
 
-# ✅ Update package list
-apt-get update && apt-get install -y wget unzip curl
+echo "🔽 Downloading Google Chrome..."
+mkdir -p /opt/chrome
+curl -Lo /opt/chrome/chrome-linux.zip https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+unzip /opt/chrome/chrome-linux.zip -d /opt/chrome
+chmod +x /opt/chrome/google-chrome
 
-# ✅ Install Google Chrome (without sudo)
-echo "Installing Google Chrome..."
-wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-dpkg -i google-chrome.deb || apt-get install -fy
-rm google-chrome.deb
+echo "🔽 Downloading ChromeDriver..."
+mkdir -p /opt/chromedriver
+CHROMEDRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE)
+curl -Lo /opt/chromedriver/chromedriver_linux64.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+unzip /opt/chromedriver/chromedriver_linux64.zip -d /opt/chromedriver
+chmod +x /opt/chromedriver/chromedriver
 
-# ✅ Verify Chrome installation
-if command -v google-chrome > /dev/null; then
-    echo "✅ Google Chrome installed at: $(command -v google-chrome)"
-    google-chrome --version
-else
-    echo "❌ Google Chrome installation failed!"
-    exit 1
-fi
-
-# ✅ Install ChromeDriver (without sudo)
-echo "Installing ChromeDriver..."
-CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1)
-CHROMEDRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION)
-wget -q "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
-unzip chromedriver_linux64.zip
-chmod +x chromedriver
-mv chromedriver /usr/local/bin/chromedriver
-rm chromedriver_linux64.zip
-
-# ✅ Verify ChromeDriver installation
-if command -v chromedriver > /dev/null; then
-    echo "✅ ChromeDriver installed at: $(command -v chromedriver)"
-    chromedriver --version
-else
-    echo "❌ ChromeDriver installation failed!"
-    exit 1
-fi
-
-echo "✅ Chrome and ChromeDriver installed successfully!"
+echo "✅ Google Chrome & ChromeDriver installed successfully."

@@ -7,19 +7,9 @@ import time
 import os
 import shutil
 
-# ✅ Check if Google Chrome is installed
-chrome_path = shutil.which("google-chrome")
-if not chrome_path:
-    raise FileNotFoundError("❌ Google Chrome is not installed or not found!")
-
-print(f"✅ Google Chrome Path: {chrome_path}")
-
-# ✅ Check if ChromeDriver is installed
-chromedriver_path = shutil.which("chromedriver")
-if not chromedriver_path:
-    raise FileNotFoundError("❌ ChromeDriver is not installed or not found!")
-
-print(f"✅ ChromeDriver Path: {chromedriver_path}")
+# ✅ Use manually installed Chrome & ChromeDriver paths
+CHROME_PATH = "/opt/chrome/google-chrome"
+CHROMEDRIVER_PATH = "/opt/chromedriver/chromedriver"
 
 # ✅ Configure Selenium options
 options = webdriver.ChromeOptions()
@@ -27,13 +17,13 @@ options.add_argument("--headless")  # Run in headless mode
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-# ✅ Specify Chrome binary location
-options.binary_location = chrome_path
+# ✅ Explicitly set Chrome binary path
+options.binary_location = CHROME_PATH
 
-# ✅ Initialize Selenium WebDriver
-driver = webdriver.Chrome(service=Service(chromedriver_path), options=options)
+# ✅ Initialize Selenium WebDriver with hardcoded paths
+driver = webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=options)
 
-print("✅ ChromeDriver successfully started!")
+print("✅ ChromeDriver successfully started with manually installed path!")
 
 # ✅ Function to Extract Google Review URLs
 def get_google_review_urls(search_term):
