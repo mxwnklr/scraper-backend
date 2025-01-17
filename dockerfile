@@ -1,42 +1,27 @@
-# ✅ Use an official lightweight Python image
-FROM python:3.11-slim
+# Use official Python image
+FROM python:3.11
 
-# ✅ Set a working directory
+# Set working directory
 WORKDIR /app
 
-# ✅ Install system dependencies (including Chrome & ChromeDriver)
-RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    curl \
-    xvfb \
-    libxi6 \
-    libgconf-2-4 \
-    && rm -rf /var/lib/apt/lists/*
-
-# ✅ Download and install Google Chrome (latest stable)
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable
-
-# ✅ Download and install ChromeDriver (matching version)
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
-    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") && \
-    wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" && \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
-    rm /tmp/chromedriver.zip && \
-    chmod +x /usr/local/bin/chromedriver
-
-# ✅ Install Python dependencies
+# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ✅ Copy the entire backend project
-COPY . .
+# Install dependencies for Chrome & ChromeDriver
+RUN apt-get update && apt-get install -y wget unzip curl \
+    && wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && dpkg -i google-chrome.deb || apt-get -fy install \
+    && wget -q "https://chromedriver.storage.googleapis.com/$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE)/chromedriver_linux64.zip" \
+    && unzip chromedriver_linux64.zip -d /usr/local/bin/ \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /var/lib/apt/lists/* google-chrome.deb chromedriver_linux64.zip
 
-# ✅ Expose the port used by FastAPI
+# Expose port
 EXPOSE 8000
 
-# ✅ Run the FastAPI application
+# Copy app code
+COPY . .
+
+# Start app
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

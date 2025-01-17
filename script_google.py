@@ -2,22 +2,28 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 import json
 import time
 import os
 import shutil
 
-# ✅ Chrome Options for Headless Mode
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")  # No UI
-options.add_argument("--no-sandbox")  # Required for Docker
-options.add_argument("--disable-dev-shm-usage")  # Prevent crashes
-options.add_argument("--disable-gpu")
-options.add_argument("--window-size=1920,1080")
+# ✅ Set Chrome options
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Run in headless mode
+chrome_options.add_argument("--no-sandbox")  # Required for Docker
+chrome_options.add_argument("--disable-dev-shm-usage")  # Prevent crashes
+chrome_options.add_argument("--disable-gpu")  # Optional: Avoid GPU rendering issues
+chrome_options.add_argument("--remote-debugging-port=9222")  # Debugging
 
-# ✅ Use ChromeDriver inside the container
-driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"), options=options)
+# ✅ Set ChromeDriver path (ensure it's correctly installed)
+chrome_driver_path = "/usr/local/bin/chromedriver"
+chrome_service = Service(chrome_driver_path)
 
+# ✅ Initialize WebDriver
+driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+
+print("✅ ChromeDriver is running successfully!")
 # ✅ Function to Extract Google Review URLs
 def get_google_review_urls(search_term):
     formatted_search = search_term.replace(" ", "+")
