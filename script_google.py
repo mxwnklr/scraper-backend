@@ -5,21 +5,33 @@ from webdriver_manager.chrome import ChromeDriverManager
 import json
 import time
 import os
+import shutil
 
-# ✅ Configure Chrome options
+# ✅ Check if Google Chrome is installed
+chrome_path = shutil.which("google-chrome")
+if not chrome_path:
+    raise FileNotFoundError("❌ Google Chrome is not installed or not found!")
+
+print(f"✅ Google Chrome Path: {chrome_path}")
+
+# ✅ Check if ChromeDriver is installed
+chromedriver_path = shutil.which("chromedriver")
+if not chromedriver_path:
+    raise FileNotFoundError("❌ ChromeDriver is not installed or not found!")
+
+print(f"✅ ChromeDriver Path: {chromedriver_path}")
+
+# ✅ Configure Selenium options
 options = webdriver.ChromeOptions()
-options.add_argument("--headless")  # Run in headless mode (no GUI)
+options.add_argument("--headless")  # Run in headless mode
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-# ✅ Set the correct Chrome binary location
-options.binary_location = "/usr/bin/google-chrome"
+# ✅ Specify Chrome binary location
+options.binary_location = chrome_path
 
-# ✅ Set the correct ChromeDriver location
-chrome_driver_path = "/usr/local/bin/chromedriver"
-
-# ✅ Initialize WebDriver
-driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+# ✅ Initialize Selenium WebDriver
+driver = webdriver.Chrome(service=Service(chromedriver_path), options=options)
 
 print("✅ ChromeDriver successfully started!")
 
