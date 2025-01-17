@@ -2,7 +2,7 @@ from fastapi import FastAPI, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from script_google import get_place_id, get_google_reviews, save_reviews_to_excel
+from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
 
 app = FastAPI()
@@ -46,32 +46,22 @@ async def process_trustpilot(
 
 @app.post("/google")
 async def process_google_reviews(
-    place_name: str = Form(...),
-    min_rating: str = Form(None)
+    place_id: str = Form(...),
+    min_rating: str = Form("1")
 ):
-    """Processes Google Reviews request and returns an Excel file."""
+    """Fetches Google reviews using SerpAPI and returns an Excel file."""
+    
     try:
-        # ✅ Step 1: Get Place ID
-        place_id = get_place_id(place_name)
-        if not place_id:
-            return {"error": "❌ No Place ID found. Try using a more precise business name."}
+        output_file = get_google_reviews(place_id, min_rating)
 
-        # ✅ Step 2: Get Reviews
-        reviews = get_google_reviews(place_id, min_rating)
-        if not reviews:
-            return {"error": "❌ No reviews found for this place."}
+        if output_file is None or not os.path.exists(output_file):
+            return {"error": "❌ No matching reviews found. Try using a different place ID."}
 
-        # ✅ Step 3: Save to Excel
-        excel_file = save_reviews_to_excel(reviews, place_name)
-        if not excel_file:
-            return {"error": "❌ No reviews found to save."}
-
-        # ✅ Step 4: Return Excel File
         return FileResponse(
-            excel_file,
+            output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             filename="google_reviews.xlsx"
         )
 
     except Exception as e:
-        return {"error": f"Something went wrong: {str(e)}"}
+        return {"error": f"❌ Something went wrong: {str(e)}"}

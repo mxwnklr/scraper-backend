@@ -8,3 +8,4 @@ python-multipart
 selenium
 webdriver-manager
 python-dotenv
+serpapi

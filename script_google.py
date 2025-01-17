@@ -1,81 +1,74 @@
 import os
+import time
 import pandas as pd
-import requests
-import time  # Required to handle API rate limits
+from serpapi import GoogleSearch
 
-GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+# ✅ Load API key from environment variables
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 
-# ✅ Function to Get Place ID from Business Name
-def get_place_id(business_name):
-    url = f"https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
-    params = {
-        "input": business_name,
-        "inputtype": "textquery",
-        "fields": "place_id",
-        "key": GOOGLE_PLACES_API_KEY,
-    }
+def get_google_reviews(place_id, min_rating=1):
+    """Fetch all Google reviews using SerpAPI with pagination."""
+    
+    if not SERPAPI_KEY:
+        return {"error": "❌ Missing SerpAPI key. Set 'SERPAPI_API_KEY' in environment variables."}
 
-    response = requests.get(url, params=params)
-    data = response.json()
-
-    if "candidates" in data and len(data["candidates"]) > 0:
-        return data["candidates"][0]["place_id"]
-    else:
-        print("❌ No Place ID found for:", business_name)
-        return None
-
-
-# ✅ Function to Get ALL Reviews (with Pagination)
-def get_google_reviews(place_id, min_rating):
     all_reviews = []
-    next_page_token = None
-    url = f"https://maps.googleapis.com/maps/api/place/details/json"
+    offset = 0  # Pagination starts at 0
 
     while True:
         params = {
+            "engine": "google_maps_reviews",
             "place_id": place_id,
-            "fields": "review",
-            "key": GOOGLE_PLACES_API_KEY,
+            "api_key": SERPAPI_KEY,
+            "hl": "en",  # Language
+            "sort_by": "newest",  # Sort by newest reviews
+            "start": offset,  # Pagination
         }
-        if next_page_token:
-            params["pagetoken"] = next_page_token  # Fetch next page
 
-        response = requests.get(url, params=params)
-        data = response.json()
+        print(f"🔍 Fetching reviews (Offset: {offset})...")
 
-        if "result" not in data or "reviews" not in data["result"]:
-            break  # No more reviews available
+        try:
+            search = GoogleSearch(params)
+            results = search.get_dict()
 
-        for review in data["result"]["reviews"]:
-            rating = review.get("rating", 0)
-            if min_rating and rating < int(min_rating):
-                continue  # Skip reviews below the min rating
+            if "error" in results:
+                return {"error": f"SerpAPI Error: {results['error']}"}
 
-            all_reviews.append({
-                "Reviewer": review.get("author_name", "Unknown"),
-                "Rating": rating,
-                "Review Date": review.get("relative_time_description", ""),
-                "Review Text": review.get("text", ""),
-            })
+            reviews = results.get("reviews", [])
+            
+            # ✅ Filter reviews by minimum rating
+            filtered_reviews = [
+                {
+                    "Reviewer": r["user"]["name"],
+                    "Rating": r["rating"],
+                    "Review": r["snippet"]
+                }
+                for r in reviews if r["rating"] >= int(min_rating)
+            ]
 
-        # Check for pagination
-        next_page_token = data.get("next_page_token")
-        if not next_page_token:
-            break  # No more pages, stop fetching
+            if not filtered_reviews:
+                break  # ✅ Stop fetching if no more reviews
 
-        print("⏳ Fetching more reviews (Next Page)...")
-        time.sleep(2)  # Google API requires a delay before using the next token
+            all_reviews.extend(filtered_reviews)
 
-    return all_reviews if all_reviews else None
+            # ✅ Break if there are no more pages
+            if "next_page_token" not in results:
+                print("✅ No more pages left to scrape.")
+                break
 
+            offset += 10  # Increase offset for the next set of reviews
+            time.sleep(2)  # ✅ Prevent rate-limiting
 
-# ✅ Function to Convert Reviews to Excel
-def save_reviews_to_excel(reviews, business_name):
-    if not reviews:
-        return None  # No reviews to save
+        except Exception as e:
+            return {"error": f"❌ Error fetching reviews: {str(e)}"}
 
-    df = pd.DataFrame(reviews)
-    filename = f"{business_name}_reviews.xlsx"
+    if not all_reviews:
+        return None  # ✅ Return None if no reviews found
 
+    # ✅ Save reviews to an Excel file
+    filename = "google_reviews.xlsx"
+    df = pd.DataFrame(all_reviews)
     df.to_excel(filename, index=False)
+    
+    print(f"📄 Saved {len(all_reviews)} reviews to {filename}")
     return filename
