@@ -45,23 +45,22 @@ async def process_trustpilot(
         )
 
 @app.post("/google")
-async def process_google_reviews(
-    place_id: str = Form(...),
+async def scrape_google_reviews(
+    business_name: str = Form(...),
     min_rating: str = Form("1")
 ):
-    """Fetches Google reviews using SerpAPI and returns an Excel file."""
-    
+    """Scrapes Google Reviews based on the business name."""
     try:
-        output_file = get_google_reviews(place_id, min_rating)
+        output_file = get_google_reviews(business_name, min_rating)
 
         if output_file is None or not os.path.exists(output_file):
-            return {"error": "❌ No matching reviews found. Try using a different place ID."}
+            return {"error": "No matching reviews found. Try a different business name."}
 
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             filename="google_reviews.xlsx"
         )
-
+    
     except Exception as e:
-        return {"error": f"❌ Something went wrong: {str(e)}"}
+        return {"error": f"Something went wrong: {str(e)}"}
