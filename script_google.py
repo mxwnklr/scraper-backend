@@ -4,18 +4,24 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 import json
 import time
+import os
 
-# ✅ Automatically install Chrome WebDriver
+# ✅ Configure Chrome options
 options = webdriver.ChromeOptions()
-options.add_argument("--headless")
+options.add_argument("--headless")  # Run in headless mode (no GUI)
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-# ✅ Manually set Chrome binary location
+# ✅ Set the correct Chrome binary location
 options.binary_location = "/usr/bin/google-chrome"
 
-# ✅ Start WebDriver
-driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"), options=options)
+# ✅ Set the correct ChromeDriver location
+chrome_driver_path = "/usr/local/bin/chromedriver"
+
+# ✅ Initialize WebDriver
+driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+
+print("✅ ChromeDriver successfully started!")
 
 # ✅ Function to Extract Google Review URLs
 def get_google_review_urls(search_term):
