@@ -1,104 +1,104 @@
 import os
+import requests
 import pandas as pd
-import googlemaps
-from serpapi import GoogleSearch
 
-# ✅ Load API keys
-GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
-
-# ✅ Initialize Google Maps Client
-gmaps = googlemaps.Client(key=GOOGLE_PLACES_API_KEY)
+# ✅ Load API credentials from environment variables
+DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
+DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
 
 def get_place_id(business_name):
-    """Finds the Google Place ID using Google Places API."""
+    """Retrieve Place ID using DataForSEO (No Language or Location Restrictions)."""
+    url = "https://api.dataforseo.com/v3/business_data/google/my_business_info/live"
+    
+    # ✅ Authentication
+    auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
+    
+    # ✅ Request Payload (No location/language filter)
+    payload = {
+        "data": [{"business_name": business_name}]  # Removes language_code
+    }
+    
+    response = requests.post(url, auth=auth, json=payload)
+    
+    if response.status_code != 200:
+        print(f"❌ DataForSEO Error: {response.text}")
+        return None
+
+    result = response.json()
+    
     try:
-        print(f"🔍 Searching for place: {business_name} using Google Places API...")
-        response = gmaps.places(query=business_name)
-        if not response.get("results"):
-            print("❌ No place found.")
-            return None
-        place_id = response["results"][0]["place_id"]
+        place_id = result["tasks"][0]["result"][0]["place_id"]
         print(f"✅ Found Place ID: {place_id}")
         return place_id
-    except Exception as e:
-        print(f"❌ Error retrieving Place ID: {e}")
+    except (KeyError, IndexError):
+        print("❌ No place found.")
         return None
 
 def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """Fetches ALL Google reviews, filters by rating and keywords (if provided), then saves to Excel."""
+    """Retrieve ALL Google reviews using DataForSEO (No Language Filter)."""
+    print(f"🔍 Searching for place: {business_name}")
     
+    # ✅ Step 1: Convert Business Name → Place ID
     place_id = get_place_id(business_name)
     if not place_id:
-        return None  # 🚨 Exit early if no place found
-
-    all_reviews = []
-    next_page_token = None
-
-    # ✅ Convert rating filter if provided
-    include_ratings = (
-        list(map(int, include_ratings.split(","))) if include_ratings else []
-    )
-
-    # ✅ Convert keyword filter if provided
-    keyword_list = (
-        [kw.strip().lower() for kw in keywords.split(",") if kw.strip()]
-        if keywords else []
-    )
-
-    while True:
-        params = {
-            "engine": "google_maps_reviews",
-            "place_id": place_id,
-            "api_key": SERPAPI_API_KEY,
-            "hl": "en",
-            "sort_by": "newest"
-        }
-
-        if next_page_token:
-            params["next_page_token"] = next_page_token
-
-        search = GoogleSearch(params)
-        results = search.get_dict()
-
-        if "error" in results:
-            print(f"❌ Google API Error: {results['error']}")
-            break
-
-        reviews = results.get("reviews", [])
-        if not reviews:
-            print("❌ No more reviews found.")
-            break
-
-        for r in reviews:
-            review_text = r.get("snippet", "").lower()
-            rating = r["rating"]
-
-            # ✅ Apply filters **ONLY if provided**
-            if (not include_ratings or rating in include_ratings) and (
-                not keyword_list or any(kw in review_text for kw in keyword_list)
-            ):
-                all_reviews.append({
-                    "Reviewer": r["user"]["name"],
-                    "Rating": rating,
-                    "Review": r.get("snippet", "No review text"),
-                    "Date": r.get("date", "Unknown"),
-                    "Profile": r["user"]["link"],
-                    "Review Link": r["link"]
-                })
-
-        next_page_token = results.get("serpapi_pagination", {}).get("next_page_token")
-        if not next_page_token:
-            print("✅ Scraped all available reviews!")
-            break
-
-    if not all_reviews:
-        print("❌ No matching reviews found.")
         return None
 
-    filename = "google_reviews.xlsx"
-    df = pd.DataFrame(all_reviews)
-    df.to_excel(filename, index=False)
+    url = "https://api.dataforseo.com/v3/business_data/google/reviews/live"
+    auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
-    print(f"✅ Successfully saved {len(all_reviews)} filtered reviews to {filename}")
+    # ✅ Step 2: Fetch Reviews Using Place ID (No language filter)
+    payload = {
+        "data": [{"place_id": place_id}]  # No "language_code" (fetches ALL available languages)
+    }
+    
+    response = requests.post(url, auth=auth, json=payload)
+    
+    if response.status_code != 200:
+        print(f"❌ DataForSEO API Error: {response.text}")
+        return None
+
+    result = response.json()
+    
+    try:
+        reviews = result["tasks"][0]["result"][0]["reviews"]
+        print(f"✅ Retrieved {len(reviews)} reviews")
+    except (KeyError, IndexError):
+        print("❌ No reviews found.")
+        return None
+
+    # ✅ Step 3: Filter by Ratings & Keywords (Optional)
+    filtered_reviews = []
+    for review in reviews:
+        rating = review["rating"]
+        comment = review["text"]
+
+        # ⭐ Rating Filter (if specified)
+        if include_ratings:
+            allowed_ratings = [int(r.strip()) for r in include_ratings.split(",")]
+            if rating not in allowed_ratings:
+                continue
+        
+        # 🔍 Keyword Filter (if specified)
+        if keywords:
+            keyword_list = keywords.lower().split(",")
+            if not any(k.strip() in comment.lower() for k in keyword_list):
+                continue
+
+        filtered_reviews.append({
+            "Review": comment,
+            "Rating": rating,
+            "Keyword": ", ".join([k for k in keyword_list if k in comment.lower()]) if keywords else "N/A",
+            "Date": review["date"],
+            "Link": review.get("review_url", "No link available")
+        })
+
+    if not filtered_reviews:
+        return None
+
+    # ✅ Step 4: Save Reviews to Excel
+    filename = "google_reviews.xlsx"
+    df = pd.DataFrame(filtered_reviews)
+    df.to_excel(filename, index=False)
+    
+    print(f"✅ Successfully saved {len(filtered_reviews)} reviews to {filename}")
     return filename

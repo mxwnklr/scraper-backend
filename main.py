@@ -52,20 +52,18 @@ async def process_trustpilot(
 @app.post("/google")
 async def process_google_reviews(
     business_name: str = Form(...),
-    include_ratings: str = Form(""),  # ✅ Default empty
-    keywords: str = Form("")  # ✅ Default empty
+    include_ratings: str = Form(""),
+    keywords: str = Form(""),
 ):
-    """Handles Google review scraping requests with optional rating & keyword filters."""
+    """Handles Google review scraping requests using DataForSEO"""
     try:
-        print(f"🔍 Searching Google Reviews: {business_name} | Ratings: {include_ratings or 'ALL'} | Keywords: {keywords or 'ALL'}")
+        print(f"🔍 Searching for place: {business_name} with filters (if any)")
 
         output_file = get_google_reviews(business_name, include_ratings, keywords)
 
         if output_file is None or not os.path.exists(output_file):
-            print("❌ No matching Google reviews found.")
             return JSONResponse(status_code=404, content={"error": "❌ No matching reviews found."})
 
-        print(f"✅ Google Scraping Successful. Returning file: {output_file}")
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -73,5 +71,5 @@ async def process_google_reviews(
         )
 
     except Exception as e:
-        print(f"❌ Google Scraper Error: {e}")
+        print(f"❌ Backend Error: {e}")
         return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
