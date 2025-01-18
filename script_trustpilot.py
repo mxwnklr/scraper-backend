@@ -39,7 +39,7 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
             print(f"🔍 Found {len(review_cards)} review cards")
 
             if not review_cards:
-                break
+                break  # ✅ Stop scraping when no more reviews are found
 
             for card in review_cards:
                 # ✅ Extract Review Text
@@ -65,24 +65,29 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
                 review_link = f"https://www.trustpilot.com{review_link_tag['href']}" if review_link_tag else "No Link"
 
                 # ✅ Match Keywords
-                matched_keywords = [k for k in keywords.split(",") if k.lower() in comment.lower()]
+                matched_keywords = [k.strip() for k in keywords.split(",") if k.strip().lower() in comment.lower()]
+                
+                # ✅ Convert include_ratings to a set of integers safely
+                allowed_ratings = set()
+                if include_ratings.strip():
+                    allowed_ratings = {int(r.strip()) for r in include_ratings.split(",") if r.strip().isdigit()}
 
                 # ✅ Filter by Rating & Keyword
-                if rating in map(int, include_ratings.split(",")) and matched_keywords:
+                if (not allowed_ratings or rating in allowed_ratings) and (not keywords.strip() or matched_keywords):
                     all_reviews.append({
                         "Review": comment,
                         "Rating": rating,
-                        "Keyword": ", ".join(matched_keywords),
+                        "Matching Keywords": ", ".join(matched_keywords) if matched_keywords else "None",
                         "Date": review_date,
                         "Link to Review": review_link
                     })
 
             current_page += 1
-            time.sleep(2)
+            time.sleep(2)  # ✅ Prevents being blocked by Trustpilot
 
         except requests.exceptions.RequestException as e:
             print(f"❌ Error fetching page: {e}")
-            break
+            break  # ✅ Stop if there's a network error
 
     if not all_reviews:
         return None
