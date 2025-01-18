@@ -7,7 +7,7 @@ DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
 
 def get_place_id(business_name):
-    """Retrieve Place ID using DataForSEO (Handles Errors Properly)."""
+    """Retrieve Place ID using DataForSEO (Handles Empty Responses)."""
     url = "https://api.dataforseo.com/v3/business_data/google/my_business_info/live"
     
     # ✅ Authentication
@@ -26,6 +26,7 @@ def get_place_id(business_name):
         return None
 
     result = response.json()
+    print(f"🔎 DataForSEO Response: {result}")  # <-- NEW DEBUG LOG
 
     # ✅ Safe Extraction
     try:
@@ -37,12 +38,16 @@ def get_place_id(business_name):
         if "result" not in first_task or not first_task["result"]:
             raise ValueError("No result found in API response.")
 
-        place_id = first_task["result"][0].get("place_id")
+        place_info = first_task["result"][0]
+
+        # ✅ Extract Place ID (Check if Exists)
+        place_id = place_info.get("place_id")
+        business_address = place_info.get("address", "Unknown Address")
 
         if not place_id:
             raise ValueError("Place ID is missing in response.")
 
-        print(f"✅ Found Place ID: {place_id}")
+        print(f"✅ Found Place ID: {place_id} for {business_name} ({business_address})")
         return place_id
     except (KeyError, IndexError, ValueError) as e:
         print(f"❌ Error extracting Place ID: {e}")
