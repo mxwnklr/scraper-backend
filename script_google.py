@@ -12,7 +12,7 @@ def get_place_id(business_name):
     """Fetches Place ID from Google Places API based on business name."""
     print(f"🔍 Searching Google Places API for: {business_name}")
 
-    url = f"https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+    url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
         "input": business_name,
         "inputtype": "textquery",
@@ -34,9 +34,9 @@ def get_place_id(business_name):
         return None
 
 # ✅ Get Google Reviews from DataForSEO
-def get_google_reviews(business_name):
-    """Fetches Google Reviews using DataForSEO."""
-    
+def get_google_reviews(business_name, include_ratings="", keywords=""):
+    """Fetches Google Reviews using DataForSEO with optional rating & keyword filtering."""
+
     # ✅ Step 1: Get Place ID
     place_id = get_place_id(business_name)
     if not place_id:
@@ -51,10 +51,20 @@ def get_google_reviews(business_name):
 
     payload = [{
         "place_id": place_id,
-        "reviews_limit": 500,  # Fetch up to 500 reviews
+        "reviews_limit": 2000,
         "filters": [],
-        "language_code": "de"  # ✅ FIXED TYPO
+        "language_code": "de"
     }]
+
+    # ✅ Apply Rating Filter (if provided)
+    if include_ratings:
+        rating_values = list(map(int, include_ratings.split(",")))  # Convert to list of ints
+        payload[0]["filters"].append({"field": "rating", "operator": "in", "value": rating_values})
+
+    # ✅ Apply Keyword Filter (if provided)
+    if keywords:
+        keyword_list = [k.strip().lower() for k in keywords.split(",")]
+        payload[0]["filters"].append({"field": "text", "operator": "contains", "value": keyword_list})
 
     headers = {"Content-Type": "application/json"}
     response = requests.post(url, auth=auth, json=payload, headers=headers)
