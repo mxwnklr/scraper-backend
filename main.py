@@ -7,7 +7,7 @@ from script_trustpilot import run_trustpilot_scraper
 
 app = FastAPI()
 
-# ✅ Allow CORS for frontend
+# ✅ Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Replace with your frontend URL in production
@@ -16,26 +16,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ TRUSTPILOT SCRAPER
 @app.post("/trustpilot")
 async def process_trustpilot(
     company_url: str = Form(...),
-    keywords: str = Form(""),  # ✅ Default empty
-    include_ratings: str = Form("")  # ✅ Default empty
+    keywords: str = Form(""),  # Optional
+    include_ratings: str = Form("")  # Optional
 ):
     """Processes Trustpilot scraping."""
     try:
-        print(f"🔍 Scraping Trustpilot: {company_url} | Keywords: {keywords or 'ALL'} | Ratings: {include_ratings or 'ALL'}")
-
         output_file = run_trustpilot_scraper(company_url, keywords, include_ratings)
 
         if output_file is None or not os.path.exists(output_file):
-            print("❌ No matching Trustpilot reviews found.")
             return JSONResponse(
                 status_code=404,
                 content={"error": "❌ No matching reviews found. Try different keywords or ratings."}
             )
 
-        print(f"✅ Trustpilot Scraping Successful. Returning file: {output_file}")
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -43,23 +40,22 @@ async def process_trustpilot(
         )
     
     except Exception as e:
-        print(f"❌ Trustpilot Scraper Error: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": f"❌ Something went wrong: {str(e)}"}
         )
 
-### **✅ Google Reviews Scraper Endpoint (Google Places + DataForSEO)**
+# ✅ GOOGLE REVIEWS SCRAPER (DataForSEO)
 @app.post("/google")
 async def process_google_reviews(
-    business_name: str = Form(...),  # Business Name is REQUIRED
-    include_ratings: str = Form(""),  # Default to empty (optional filter)
-    keywords: str = Form("")  # Default to empty (optional filter)
+    business_name: str = Form(...),
+    include_ratings: str = Form(""),  # Optional
+    keywords: str = Form("")  # Optional
 ):
-    """Handles Google review scraping requests with optional rating & keyword filters."""
+    """Handles Google review scraping requests."""
     try:
         print(f"🔍 Searching for place: {business_name} with filters (if any)")
-
+        
         output_file = get_google_reviews(business_name, include_ratings, keywords)
 
         if output_file is None or not os.path.exists(output_file):

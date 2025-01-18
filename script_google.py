@@ -2,14 +2,13 @@ import os
 import requests
 import pandas as pd
 
-# ✅ Load API credentials from environment variables
-GOOGLE_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+# ✅ Load API Keys
 DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# ✅ Google Places API to retrieve Place ID
 def get_place_id(business_name):
-    """🔍 Retrieve Place ID using Google Places API (More Reliable)."""
-    
     url = f"https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
         "input": business_name,
@@ -17,114 +16,91 @@ def get_place_id(business_name):
         "fields": "place_id,formatted_address",
         "key": GOOGLE_API_KEY
     }
-    
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        result = response.json()
 
-        print(f"🔎 Google Places Response: {result}")  # Debugging
+    response = requests.get(url, params=params)
+    data = response.json()
 
-        if "candidates" not in result or not result["candidates"]:
-            raise ValueError("❌ No result found in Google Places API.")
-
-        place_id = result["candidates"][0].get("place_id")
-        business_address = result["candidates"][0].get("formatted_address", "Unknown Address")
-
-        if not place_id:
-            raise ValueError("❌ Place ID is missing in response.")
-
-        print(f"✅ Found Place ID: {place_id} for {business_name} ({business_address})")
+    if data.get("status") == "OK" and data.get("candidates"):
+        place_id = data["candidates"][0]["place_id"]
+        address = data["candidates"][0]["formatted_address"]
+        print(f"✅ Found Place ID: {place_id} for {business_name} ({address})")
         return place_id
-
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Google API Request Failed: {e}")
+    else:
+        print("❌ Error extracting Place ID: No result found in API response.")
         return None
 
+# ✅ Fetch Google Reviews using DataForSEO
 def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """🔄 Fetch ALL Google reviews using DataForSEO."""
-    
-    print(f"🔍 Searching for place: {business_name}")
-
-    # ✅ Step 1: Convert Business Name → Place ID (Using Google Places API)
     place_id = get_place_id(business_name)
     if not place_id:
-        print("❌ No valid Place ID found.")
         return None
 
-    url = "https://api.dataforseo.com/v3/business_data/google/reviews/live"
+    # ✅ Submit Task to DataForSEO
+    payload = {
+        "data": [
+            {
+                "place_id": place_id,
+                "language_code": "en"
+            }
+        ]
+    }
+
+    task_url = "https://api.dataforseo.com/v3/business_data/google/reviews/task_post"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
-    # ✅ Step 2: Fetch Reviews Using Place ID
-    payload = {
-        "data": [{"place_id": place_id}]
-    }
-    
-    try:
-        response = requests.post(url, auth=auth, json=payload)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"❌ DataForSEO API Request Failed: {e}")
+    response = requests.post(task_url, auth=auth, json=payload)
+    task_response = response.json()
+
+    if "tasks" not in task_response or not task_response["tasks"]:
+        print("❌ DataForSEO Task Submission Failed.")
         return None
 
-    result = response.json()
-    print(f"📡 DataForSEO Response: {result}")  # Debugging
+    task_id = task_response["tasks"][0]["id"]
 
-    # ✅ Safe Extraction of Reviews
-    try:
-        if "tasks" not in result or not result["tasks"]:
-            raise ValueError("❌ No tasks found in API response.")
+    # ✅ Retrieve the Task Results
+    result_url = f"https://api.dataforseo.com/v3/business_data/google/reviews/task_get/{task_id}"
+    result_response = requests.get(result_url, auth=auth)
+    reviews_data = result_response.json()
 
-        first_task = result["tasks"][0]
-
-        if "result" not in first_task or not first_task["result"]:
-            raise ValueError("❌ No result found in API response.")
-
-        reviews = first_task["result"][0].get("reviews", [])
-
-        if not reviews:
-            print("❌ No reviews found.")
-            return None
-
-        print(f"✅ Retrieved {len(reviews)} reviews")
-
-    except (KeyError, IndexError, ValueError) as e:
-        print(f"❌ Error extracting reviews: {e}")
+    if "result" not in reviews_data or not reviews_data["result"]:
+        print("❌ No reviews found.")
         return None
 
-    # ✅ Step 3: Filter by Ratings & Keywords (Optional)
+    reviews = reviews_data["result"]
+
+    # ✅ Filter by Rating & Keywords
     filtered_reviews = []
     for review in reviews:
-        rating = review["rating"]
-        comment = review["text"]
+        rating = review.get("rating")
+        review_text = review.get("text", "")
+        review_link = review.get("review_link", "")
+        review_date = review.get("date", "")
+        user_name = review.get("user_name", "")
 
-        # ⭐ Rating Filter (if specified)
-        if include_ratings:
-            allowed_ratings = [int(r.strip()) for r in include_ratings.split(",")]
-            if rating not in allowed_ratings:
-                continue
-        
-        # 🔍 Keyword Filter (if specified)
+        # Check Rating
+        if include_ratings and str(rating) not in include_ratings.split(","):
+            continue
+
+        # Check Keywords
         if keywords:
-            keyword_list = keywords.lower().split(",")
-            if not any(k.strip() in comment.lower() for k in keyword_list):
+            keyword_list = keywords.split(",")
+            if not any(keyword.lower() in review_text.lower() for keyword in keyword_list):
                 continue
 
         filtered_reviews.append({
-            "Review": comment,
+            "Reviewer": user_name,
+            "Review": review_text,
             "Rating": rating,
-            "Keyword": ", ".join([k for k in keyword_list if k in comment.lower()]) if keywords else "N/A",
-            "Date": review["date"],
-            "Link": review.get("review_url", "No link available")
+            "Date": review_date,
+            "Review Link": review_link
         })
 
+    # ✅ Save as Excel File
     if not filtered_reviews:
         return None
 
-    # ✅ Step 4: Save Reviews to Excel
     filename = "google_reviews.xlsx"
     df = pd.DataFrame(filtered_reviews)
     df.to_excel(filename, index=False)
-    
-    print(f"✅ Successfully saved {len(filtered_reviews)} reviews to {filename}")
+
     return filename
