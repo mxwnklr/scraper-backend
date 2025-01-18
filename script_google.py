@@ -35,20 +35,27 @@ def get_place_id(business_name):
         return None
 
 # ✅ Submit Review Task to DataForSEO
-def submit_review_task(place_id):
+def submit_review_task(place_id, include_ratings, keywords):
     """Submits a request to DataForSEO to fetch Google reviews asynchronously."""
     print(f"📡 Submitting task for Place ID: {place_id} to DataForSEO")
 
     url = "https://api.dataforseo.com/v3/business_data/google/reviews/task_post"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
+    # ✅ Handle filtering properly
+    filters = []
+    if include_ratings and include_ratings.strip():  # ✅ Only add if not empty
+        filters.append({"rating": include_ratings.split(",")})
+    if keywords and keywords.strip():  # ✅ Only add if not empty
+        filters.append({"text": keywords.split(",")})
+
     payload = [{
         "se": "google",
         "se_type": "reviews",
         "place_id": place_id,
         "reviews_limit": 2000,  # Fetch up to 2000 reviews
-        "filters": [],
-        "language_code": "de",  # Ensure correct language parameter
+        "filters": filters,  # ✅ Filters only applied if not empty
+        "language_code": "de",
         "device": "desktop",
         "os": "windows"
     }]
@@ -101,7 +108,7 @@ def fetch_review_results(task_id):
     return None
 
 # ✅ Get Google Reviews
-def get_google_reviews(business_name):
+def get_google_reviews(business_name, include_ratings="", keywords=""):
     """Fetches Google Reviews from DataForSEO asynchronously."""
 
     # ✅ Step 1: Get Place ID
@@ -111,7 +118,7 @@ def get_google_reviews(business_name):
         return None  # Stop execution if no Place ID found
 
     # ✅ Step 2: Submit Task
-    task_id = submit_review_task(place_id)
+    task_id = submit_review_task(place_id, include_ratings, keywords)
     if not task_id:
         return None  # Stop if task submission failed
 
