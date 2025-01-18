@@ -53,7 +53,7 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
         "place_id": place_id,
         "reviews_limit": 2000,
         "filters": [],
-        "language_code": "de"
+        "location_name": "Germany"
     }]
 
     # ✅ Apply Rating Filter (if provided)
