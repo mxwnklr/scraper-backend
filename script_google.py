@@ -85,43 +85,46 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
 
 # ✅ Fetch Completed Task Results with Pagination
 def fetch_review_results(task_id):
-    """Fetches completed review results from DataForSEO, handling pagination."""
+    """Fetches completed review results from DataForSEO, handling pagination properly."""
     print(f"⏳ Waiting for DataForSEO to process task: {task_id}")
 
     url = f"https://api.dataforseo.com/v3/business_data/google/reviews/task_get/{task_id}"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
-    max_retries = 10
     reviews = []
-    next_page_token = None  # ✅ Used to fetch additional pages
+    next_page_token = None  # ✅ Start with None, but update dynamically
 
-    for attempt in range(max_retries):
-        time.sleep(5)  # ✅ Wait before checking status
+    while True:  # ✅ Loop indefinitely until all pages are scraped
+        time.sleep(5)  # ✅ Delay between API calls
 
         response = requests.get(url, auth=auth)
         data = response.json()
         print(f"📡 DataForSEO Task Result: {data}")  # Debugging
 
         if "tasks" not in data or not data["tasks"]:
-            continue
+            print("❌ No valid tasks found.")
+            return None
 
         task = data["tasks"][0]
         if task.get("status_code") == 20000 and task.get("result"):
             result = task["result"][0]
             reviews.extend(result.get("items", []))  # ✅ Append reviews
-            next_page_token = result.get("next_page_token")  # ✅ Get next page token
 
             print(f"✅ Scraped {len(reviews)} reviews so far...")
 
-            if not next_page_token:  # ✅ No more pages left
-                break
-            else:
-                print(f"🔄 Fetching next page of reviews (Token: {next_page_token})")
-                task_id = submit_review_task(result["place_id"], "", "", next_page_token)  # Request next page
-                if not task_id:
-                    break  # Stop if no new task was created
+            next_page_token = result.get("next_page_token")  # ✅ Update token for next page
 
-        print(f"⏳ Task not ready yet (Attempt {attempt+1}/{max_retries})")
+            if not next_page_token:  # ✅ Stop when there are no more pages
+                break
+
+            print(f"🔄 Fetching next page of reviews (Token: {next_page_token})")
+            task_id = submit_review_task(result["place_id"], "", "", next_page_token)  # ✅ Fetch next page
+            if not task_id:
+                break  # ✅ Stop if no new task was created
+
+        else:
+            print(f"⏳ Task not ready yet, retrying...")
+            time.sleep(3)  # ✅ Add small delay before retrying
 
     if not reviews:
         print("❌ Task timed out. No reviews found.")
