@@ -8,14 +8,14 @@ GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
 
-# ✅ Get Google Place ID
-def get_place_id(business_name):
-    """Fetches Place ID from Google Places API based on business name."""
-    print(f"🔍 Searching Google Places API for: {business_name}")
+# ✅ Get Google Place ID (Now Includes Address for Accuracy)
+def get_place_id(business_name, address):
+    """Fetches Place ID from Google Places API using business name and address."""
+    print(f"🔍 Searching Google Places API for: {business_name}, {address}")
 
     url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
     params = {
-        "input": business_name,
+        "input": f"{business_name}, {address}",
         "inputtype": "textquery",
         "fields": "place_id,formatted_address",
         "key": GOOGLE_PLACES_API_KEY
@@ -27,8 +27,8 @@ def get_place_id(business_name):
 
     if data.get("status") == "OK" and data.get("candidates"):
         place_id = data["candidates"][0]["place_id"]
-        address = data["candidates"][0]["formatted_address"]
-        print(f"✅ Found Place ID: {place_id} for {business_name} ({address})")
+        formatted_address = data["candidates"][0]["formatted_address"]
+        print(f"✅ Found Place ID: {place_id} for {business_name} ({formatted_address})")
         return place_id
     else:
         print("❌ Error extracting Place ID: No result found in API response.")
@@ -44,16 +44,16 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
 
     # ✅ Handle filtering properly
     filters = []
-    if include_ratings and include_ratings.strip():  # ✅ Only add if not empty
+    if include_ratings and include_ratings.strip():
         filters.append({"rating": include_ratings.split(",")})
-    if keywords and keywords.strip():  # ✅ Only add if not empty
+    if keywords and keywords.strip():
         filters.append({"text": keywords.split(",")})
 
     payload = [{
         "se": "google",
         "se_type": "reviews",
         "place_id": place_id,
-        "reviews_limit": 2000,  # Fetch up to 2000 reviews
+        "reviews_limit": 2000,
         "max_crawl_pages": 10,  # ✅ Fetch up to 10 pages
         "depth": 700,  # ✅ Max depth for parsing reviews
         "filters": filters,  # ✅ Filters only applied if not empty
@@ -96,7 +96,7 @@ def fetch_review_results(task_id):
     reviews = []
     next_page_token = None  # ✅ Start with None, but update dynamically
 
-    while True:  # ✅ Loop indefinitely until all pages are scraped
+    while True:
         time.sleep(5)  # ✅ Delay between API calls
 
         response = requests.get(url, auth=auth)
@@ -120,13 +120,13 @@ def fetch_review_results(task_id):
                 break
 
             print(f"🔄 Fetching next page of reviews (Token: {next_page_token})")
-            task_id = submit_review_task(result["place_id"], "", "", next_page_token)  # ✅ Fetch next page
+            task_id = submit_review_task(result["place_id"], "", "", next_page_token)
             if not task_id:
-                break  # ✅ Stop if no new task was created
+                break
 
         else:
             print(f"⏳ Task not ready yet, retrying...")
-            time.sleep(3)  # ✅ Add small delay before retrying
+            time.sleep(3)
 
     if not reviews:
         print("❌ Task timed out. No reviews found.")
@@ -134,12 +134,12 @@ def fetch_review_results(task_id):
 
     return reviews
 
-# ✅ Get Google Reviews (Handles Pagination)
-def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """Fetches Google Reviews from DataForSEO asynchronously, handling pagination."""
+# ✅ Get Google Reviews (Handles Pagination & Address)
+def get_google_reviews(business_name, address, include_ratings="", keywords=""):
+    """Fetches Google Reviews from DataForSEO asynchronously, using name & address for accuracy."""
 
     # ✅ Step 1: Get Place ID
-    place_id = get_place_id(business_name)
+    place_id = get_place_id(business_name, address)
     if not place_id:
         print("❌ No valid Place ID found.")
         return None  # Stop execution if no Place ID found
