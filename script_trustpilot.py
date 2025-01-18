@@ -42,9 +42,11 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
                 break
 
             for card in review_cards:
+                # ✅ Extract Review Text
                 comment_tag = card.find("p", class_=re.compile("typography_body"))
                 comment = comment_tag.get_text(strip=True) if comment_tag else "No review text"
 
+                # ✅ Extract Rating
                 rating_tag = card.find("div", class_=re.compile("star-rating_starRating"))
                 rating_img = rating_tag.find("img") if rating_tag else None
                 rating = None
@@ -54,9 +56,26 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
                     rating_numbers = [word for word in rating_text.split() if word.isdigit()]
                     rating = int(rating_numbers[0]) if rating_numbers else None
 
+                # ✅ Extract Date
+                date_tag = card.find("time")
+                review_date = date_tag["datetime"] if date_tag else "Unknown Date"
+
+                # ✅ Extract Review Link
+                review_link_tag = card.find("a", href=True)
+                review_link = f"https://www.trustpilot.com{review_link_tag['href']}" if review_link_tag else "No Link"
+
+                # ✅ Match Keywords
                 matched_keywords = [k for k in keywords.split(",") if k.lower() in comment.lower()]
+
+                # ✅ Filter by Rating & Keyword
                 if rating in map(int, include_ratings.split(",")) and matched_keywords:
-                    all_reviews.append({"Review": comment, "Rating": rating})
+                    all_reviews.append({
+                        "Review": comment,
+                        "Rating": rating,
+                        "Keyword": ", ".join(matched_keywords),
+                        "Date": review_date,
+                        "Link to Review": review_link
+                    })
 
             current_page += 1
             time.sleep(2)
@@ -69,5 +88,8 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
         return None
 
     filename = get_unique_filename("trustpilot_reviews.xlsx")
-    pd.DataFrame(all_reviews).to_excel(filename, index=False)
+    df = pd.DataFrame(all_reviews)
+    df.to_excel(filename, index=False)
+
+    print(f"✅ Successfully saved {len(all_reviews)} reviews to {filename}")
     return filename
