@@ -47,17 +47,16 @@ async def process_trustpilot(
 
 @app.post("/google")
 async def process_google_reviews(
-    business_name: str = Form(...),
-    min_rating: str = Form("1")  # Default rating filter is 1
+    business_name: str = Form(...)
 ):
     """Handles Google review scraping requests."""
     try:
-        print(f"🔍 Searching for place: {business_name} with min rating {min_rating}")
+        print(f"🔍 Searching for place: {business_name}")
         
-        output_file = get_google_reviews(business_name, min_rating)
+        output_file = get_google_reviews(business_name)
 
         if output_file is None or not os.path.exists(output_file):
-            return JSONResponse(status_code=404, content={"error": "❌ No matching reviews found."})
+            return JSONResponse(status_code=404, content={"error": "❌ No reviews found."})
 
         return FileResponse(
             output_file,
