@@ -34,39 +34,49 @@ def get_place_id(business_name):
         return None
 
 # ✅ Get Google Reviews from DataForSEO
-def get_google_reviews(business_name, include_ratings="", keywords=""):
+def get_google_reviews(business_name):
     """Fetches Google Reviews using DataForSEO."""
     
     # ✅ Step 1: Get Place ID
     place_id = get_place_id(business_name)
     if not place_id:
+        print("❌ No valid Place ID found.")
         return None  # Stop execution if no Place ID found
 
     print(f"📡 Fetching reviews for Place ID: {place_id} from DataForSEO")
 
     # ✅ Step 2: Request DataForSEO API
-    url = "https://api.dataforseo.com/v3/business_data/google/reviews/task_post"
+    url = "https://api.dataforseo.com/v3/business_data/google/reviews/live"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
     payload = [{
         "place_id": place_id,
+        "reviews_limit": 500,  # Fetch up to 500 reviews
         "filters": [],
-        "langauge_code": "de"
+        "language_code": "de"  # ✅ FIXED TYPO
     }]
 
-    # ✅ Step 3: Apply Filters (Optional)
-    if include_ratings:
-        rating_filters = [{"key": "rating", "operator": "in", "value": list(map(int, include_ratings.split(",")))}]
-        payload[0]["filters"].extend(rating_filters)
-    
-    response = requests.post(url, auth=auth, json=payload)
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(url, auth=auth, json=payload, headers=headers)
     data = response.json()
-    
+
+    # ✅ Handle DataForSEO Errors
+    if response.status_code != 200:
+        print(f"❌ DataForSEO API Request Failed: {response.status_code} {response.text}")
+        return None
+
     print(f"📡 DataForSEO Response: {data}")  # Debugging
 
-    # ✅ Step 4: Process API Response
-    if "tasks" not in data or not data["tasks"]:
-        print("❌ DataForSEO API returned an empty response.")
+    # ✅ Check for Account Blockage
+    if data.get("tasks"):
+        task = data["tasks"][0]
+        if task["status_code"] == 40201:
+            print("🚨 DataForSEO Account Blocked: Contact support to resolve this issue.")
+            return None
+
+    # ✅ Check for Empty Response
+    if not data.get("tasks") or not data["tasks"][0].get("result"):
+        print("❌ No reviews found in DataForSEO response.")
         return None
 
     reviews = data["tasks"][0]["result"][0].get("items", [])
@@ -75,7 +85,7 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
         print("❌ No reviews found.")
         return None
 
-    # ✅ Step 5: Convert to Excel
+    # ✅ Save reviews to Excel
     filename = "google_reviews.xlsx"
     df = pd.DataFrame(reviews)
     df.to_excel(filename, index=False)
