@@ -103,7 +103,7 @@ def fetch_review_results(task_id, keywords):
 
         response = requests.get(url, auth=auth)
         data = response.json()
-        print(f"📡 DataForSEO Task Result: {data}")  
+        # print(f"📡 DataForSEO Task Result: {data}")  
 
         if "tasks" not in data or not data["tasks"]:
             print("❌ No valid tasks found.")
