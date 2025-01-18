@@ -45,7 +45,7 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
     print(f"📡 Fetching reviews for Place ID: {place_id} from DataForSEO")
 
     # ✅ Step 2: Request DataForSEO API
-    url = "https://api.dataforseo.com/v3/business_data/google/reviews/live"
+    url = "https://api.dataforseo.com/v3/business_data/google/reviews/task_post"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
     payload = [{
