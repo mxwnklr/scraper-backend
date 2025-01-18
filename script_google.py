@@ -35,7 +35,7 @@ def get_place_id(business_name):
         return None
 
 # ✅ Submit Review Task to DataForSEO
-def submit_review_task(place_id, include_ratings, keywords):
+def submit_review_task(place_id, include_ratings, keywords, page_token=None):
     """Submits a request to DataForSEO to fetch Google reviews asynchronously."""
     print(f"📡 Submitting task for Place ID: {place_id} to DataForSEO")
 
@@ -61,6 +61,9 @@ def submit_review_task(place_id, include_ratings, keywords):
         "os": "windows"
     }]
 
+    if page_token:
+        payload[0]["page_token"] = page_token  # ✅ Request next page if available
+
     headers = {"Content-Type": "application/json"}
     response = requests.post(url, auth=auth, json=payload, headers=headers)
     data = response.json()
@@ -80,15 +83,18 @@ def submit_review_task(place_id, include_ratings, keywords):
     print(f"✅ Task Created: {task_id}")
     return task_id
 
-# ✅ Fetch Completed Task Results
+# ✅ Fetch Completed Task Results with Pagination
 def fetch_review_results(task_id):
-    """Fetches completed review results from DataForSEO."""
+    """Fetches completed review results from DataForSEO, handling pagination."""
     print(f"⏳ Waiting for DataForSEO to process task: {task_id}")
 
     url = f"https://api.dataforseo.com/v3/business_data/google/reviews/task_get/{task_id}"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
     max_retries = 10
+    reviews = []
+    next_page_token = None  # ✅ Used to fetch additional pages
+
     for attempt in range(max_retries):
         time.sleep(5)  # ✅ Wait before checking status
 
@@ -101,16 +107,31 @@ def fetch_review_results(task_id):
 
         task = data["tasks"][0]
         if task.get("status_code") == 20000 and task.get("result"):
-            return task["result"][0].get("items", [])  # ✅ Extract reviews
+            result = task["result"][0]
+            reviews.extend(result.get("items", []))  # ✅ Append reviews
+            next_page_token = result.get("next_page_token")  # ✅ Get next page token
+
+            print(f"✅ Scraped {len(reviews)} reviews so far...")
+
+            if not next_page_token:  # ✅ No more pages left
+                break
+            else:
+                print(f"🔄 Fetching next page of reviews (Token: {next_page_token})")
+                task_id = submit_review_task(result["place_id"], "", "", next_page_token)  # Request next page
+                if not task_id:
+                    break  # Stop if no new task was created
 
         print(f"⏳ Task not ready yet (Attempt {attempt+1}/{max_retries})")
 
-    print("❌ Task timed out. No reviews found.")
-    return None
+    if not reviews:
+        print("❌ Task timed out. No reviews found.")
+        return None
 
-# ✅ Get Google Reviews
+    return reviews
+
+# ✅ Get Google Reviews (Handles Pagination)
 def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """Fetches Google Reviews from DataForSEO asynchronously."""
+    """Fetches Google Reviews from DataForSEO asynchronously, handling pagination."""
 
     # ✅ Step 1: Get Place ID
     place_id = get_place_id(business_name)
@@ -123,7 +144,7 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
     if not task_id:
         return None  # Stop if task submission failed
 
-    # ✅ Step 3: Fetch Task Results
+    # ✅ Step 3: Fetch Task Results (All Pages)
     reviews = fetch_review_results(task_id)
     if not reviews:
         print("❌ No reviews found.")
