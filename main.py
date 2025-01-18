@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
-import shutil
 
 app = FastAPI()
 
@@ -20,19 +19,23 @@ app.add_middleware(
 @app.post("/trustpilot")
 async def process_trustpilot(
     company_url: str = Form(...),
-    keywords: str = Form(...),
-    include_ratings: str = Form(...)
+    keywords: str = Form(""),  # ✅ Default empty
+    include_ratings: str = Form("")  # ✅ Default empty
 ):
     """Processes Trustpilot scraping."""
     try:
+        print(f"🔍 Scraping Trustpilot: {company_url} | Keywords: {keywords or 'ALL'} | Ratings: {include_ratings or 'ALL'}")
+
         output_file = run_trustpilot_scraper(company_url, keywords, include_ratings)
 
         if output_file is None or not os.path.exists(output_file):
+            print("❌ No matching Trustpilot reviews found.")
             return JSONResponse(
                 status_code=404,
                 content={"error": "❌ No matching reviews found. Try different keywords or ratings."}
             )
 
+        print(f"✅ Trustpilot Scraping Successful. Returning file: {output_file}")
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -40,6 +43,7 @@ async def process_trustpilot(
         )
     
     except Exception as e:
+        print(f"❌ Trustpilot Scraper Error: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": f"❌ Something went wrong: {str(e)}"}
@@ -47,17 +51,21 @@ async def process_trustpilot(
 
 @app.post("/google")
 async def process_google_reviews(
-    business_name: str = Form(...)
+    business_name: str = Form(...),
+    include_ratings: str = Form(""),  # ✅ Default empty
+    keywords: str = Form("")  # ✅ Default empty
 ):
-    """Handles Google review scraping requests."""
+    """Handles Google review scraping requests with optional rating & keyword filters."""
     try:
-        print(f"🔍 Searching for place: {business_name}")
-        
-        output_file = get_google_reviews(business_name)
+        print(f"🔍 Searching Google Reviews: {business_name} | Ratings: {include_ratings or 'ALL'} | Keywords: {keywords or 'ALL'}")
+
+        output_file = get_google_reviews(business_name, include_ratings, keywords)
 
         if output_file is None or not os.path.exists(output_file):
-            return JSONResponse(status_code=404, content={"error": "❌ No reviews found."})
+            print("❌ No matching Google reviews found.")
+            return JSONResponse(status_code=404, content={"error": "❌ No matching reviews found."})
 
+        print(f"✅ Google Scraping Successful. Returning file: {output_file}")
         return FileResponse(
             output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -65,5 +73,5 @@ async def process_google_reviews(
         )
 
     except Exception as e:
-        print(f"❌ Backend Error: {e}")
+        print(f"❌ Google Scraper Error: {e}")
         return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
