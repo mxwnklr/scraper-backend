@@ -54,6 +54,8 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
         "se_type": "reviews",
         "place_id": place_id,
         "reviews_limit": 2000,  # Fetch up to 2000 reviews
+        "max_crawl_pages": 10,  # ✅ Fetch up to 10 pages
+        "depth": 700,  # ✅ Max depth for parsing reviews
         "filters": filters,  # ✅ Filters only applied if not empty
         "language_code": "de",
         "location_name": "Germany",
