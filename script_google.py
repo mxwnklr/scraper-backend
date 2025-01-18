@@ -56,6 +56,7 @@ def submit_review_task(place_id, include_ratings, keywords):
         "reviews_limit": 2000,  # Fetch up to 2000 reviews
         "filters": filters,  # ✅ Filters only applied if not empty
         "language_code": "de",
+        "location_name": "Germany",
         "device": "desktop",
         "os": "windows"
     }]
