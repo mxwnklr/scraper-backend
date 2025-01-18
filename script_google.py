@@ -72,7 +72,7 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
     response = requests.post(url, auth=auth, json=payload, headers=headers)
     data = response.json()
 
-    print(f"📡 DataForSEO Task Response: {data}")  # Debugging
+    # print(f"📡 DataForSEO Task Response: {data}")  # Debugging
 
     if "tasks" not in data or not data["tasks"]:
         print("❌ DataForSEO API returned an empty response.")
