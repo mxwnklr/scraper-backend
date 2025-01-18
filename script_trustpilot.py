@@ -18,8 +18,8 @@ def get_unique_filename(base_name):
     return f"{base} ({counter}){ext}"
 
 ### **✅ TRUSTPILOT SCRAPER FUNCTION**
-def run_trustpilot_scraper(company_url, keywords, include_ratings):
-    """Scrapes Trustpilot reviews based on keywords and ratings. If left empty, scrapes all reviews."""
+def run_trustpilot_scraper(company_url, keywords="", include_ratings=""):
+    """Scrapes Trustpilot reviews. If keywords & ratings are empty, scrapes all reviews."""
     current_page = 1
     all_reviews = []
 
@@ -27,7 +27,7 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
 
     # ✅ Convert include_ratings to a list of integers (if provided)
     include_ratings = list(map(int, include_ratings.split(","))) if include_ratings else []
-    keywords_list = [k.strip().lower() for k in keywords.split(",")] if keywords else []
+    keywords_list = [k.strip().lower() for k in keywords.split(",") if k.strip()] if keywords else []
 
     while True:
         url = f"{company_url}?page={current_page}"
@@ -74,7 +74,7 @@ def run_trustpilot_scraper(company_url, keywords, include_ratings):
                 matched_keywords = [k for k in keywords_list if k in comment.lower()] if keywords_list else []
 
                 # ✅ Apply Filters:
-                if (not include_ratings or rating in include_ratings) and (not keywords_list or matched_keywords):
+                if (not include_ratings or rating in include_ratings) and (not keywords_list or matched_keywords or not keywords):
                     all_reviews.append({
                         "Review": comment,
                         "Rating": rating,
