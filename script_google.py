@@ -50,7 +50,6 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
 
     payload = [{
         "place_id": place_id,
-        "reviews_limit": 500,  # Fetch up to 500 reviews
         "filters": []
     }]
 
