@@ -7,63 +7,94 @@ DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
 
 def get_place_id(business_name):
-    """Retrieve Place ID using DataForSEO (No Language or Location Restrictions)."""
+    """Retrieve Place ID using DataForSEO (Handles Errors Properly)."""
     url = "https://api.dataforseo.com/v3/business_data/google/my_business_info/live"
     
     # ✅ Authentication
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
     
-    # ✅ Request Payload (No location/language filter)
+    # ✅ Request Payload
     payload = {
-        "data": [{"business_name": business_name}]  # Removes language_code
+        "data": [{"business_name": business_name}]
     }
     
-    response = requests.post(url, auth=auth, json=payload)
-    
-    if response.status_code != 200:
-        print(f"❌ DataForSEO Error: {response.text}")
+    try:
+        response = requests.post(url, auth=auth, json=payload)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"❌ API Request Failed: {e}")
         return None
 
     result = response.json()
-    
+
+    # ✅ Safe Extraction
     try:
-        place_id = result["tasks"][0]["result"][0]["place_id"]
+        if "tasks" not in result or not result["tasks"]:
+            raise ValueError("No tasks found in API response.")
+
+        first_task = result["tasks"][0]
+
+        if "result" not in first_task or not first_task["result"]:
+            raise ValueError("No result found in API response.")
+
+        place_id = first_task["result"][0].get("place_id")
+
+        if not place_id:
+            raise ValueError("Place ID is missing in response.")
+
         print(f"✅ Found Place ID: {place_id}")
         return place_id
-    except (KeyError, IndexError):
-        print("❌ No place found.")
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"❌ Error extracting Place ID: {e}")
         return None
 
 def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """Retrieve ALL Google reviews using DataForSEO (No Language Filter)."""
+    """Retrieve ALL Google reviews using DataForSEO."""
     print(f"🔍 Searching for place: {business_name}")
-    
+
     # ✅ Step 1: Convert Business Name → Place ID
     place_id = get_place_id(business_name)
     if not place_id:
+        print("❌ No valid Place ID found.")
         return None
 
     url = "https://api.dataforseo.com/v3/business_data/google/reviews/live"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
 
-    # ✅ Step 2: Fetch Reviews Using Place ID (No language filter)
+    # ✅ Step 2: Fetch Reviews Using Place ID
     payload = {
-        "data": [{"place_id": place_id}]  # No "language_code" (fetches ALL available languages)
+        "data": [{"place_id": place_id}]
     }
     
-    response = requests.post(url, auth=auth, json=payload)
-    
-    if response.status_code != 200:
-        print(f"❌ DataForSEO API Error: {response.text}")
+    try:
+        response = requests.post(url, auth=auth, json=payload)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"❌ API Request Failed: {e}")
         return None
 
     result = response.json()
-    
+
+    # ✅ Safe Extraction of Reviews
     try:
-        reviews = result["tasks"][0]["result"][0]["reviews"]
+        if "tasks" not in result or not result["tasks"]:
+            raise ValueError("No tasks found in API response.")
+
+        first_task = result["tasks"][0]
+
+        if "result" not in first_task or not first_task["result"]:
+            raise ValueError("No result found in API response.")
+
+        reviews = first_task["result"][0].get("reviews", [])
+
+        if not reviews:
+            print("❌ No reviews found.")
+            return None
+
         print(f"✅ Retrieved {len(reviews)} reviews")
-    except (KeyError, IndexError):
-        print("❌ No reviews found.")
+
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"❌ Error extracting reviews: {e}")
         return None
 
     # ✅ Step 3: Filter by Ratings & Keywords (Optional)
