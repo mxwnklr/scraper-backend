@@ -77,8 +77,6 @@ def run_trustpilot_scraper(company_url, keywords="", include_ratings=""):
                 if (not include_ratings or rating in include_ratings) and (not keywords_list or matched_keywords or not keywords):
                     all_reviews.append({
                         "Review": comment,
-                        "Rating": rating,
-                        "Keyword": ", ".join(matched_keywords) if matched_keywords else "N/A",
                         "Date": review_date,
                         "Link to Review": review_link
                     })
