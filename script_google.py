@@ -1,35 +1,34 @@
 import os
 import pandas as pd
+import googlemaps
 from serpapi import GoogleSearch
 
-# ✅ Load API key from environment variables
+# ✅ Load API keys from environment variables
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 
+# ✅ Initialize Google Maps Client
+gmaps = googlemaps.Client(key=GOOGLE_PLACES_API_KEY)
+
 def get_place_id(business_name):
-    """Finds the Google Place ID for a given business."""
+    """Finds the Google Place ID using Google Places API."""
     
-    params = {
-        "engine": "google_maps",
-        "q": business_name,
-        "api_key": SERPAPI_KEY
-    }
+    try:
+        print(f"🔍 Searching for place: {business_name} using Google Places API...")
 
-    print(f"🔍 Searching for place: {business_name}")
-    search = GoogleSearch(params)
-    results = search.get_dict()
+        response = gmaps.places(query=business_name)
 
-    if "error" in results:
-        print(f"❌ SerpAPI Error: {results['error']}")
+        if not response.get("results"):
+            print("❌ No place found.")
+            return None
+
+        place_id = response["results"][0]["place_id"]
+        print(f"✅ Found Place ID: {place_id}")
+        return place_id
+
+    except Exception as e:
+        print(f"❌ Error retrieving Place ID: {e}")
         return None
-
-    places = results.get("local_results", [])  
-    if not places:
-        print("❌ No place found.")
-        return None
-    
-    place_id = places[0]["place_id"]
-    print(f"✅ Found Place ID: {place_id}")
-    return place_id
 
 def get_google_reviews(business_name):
     """Fetch ALL Google reviews using SerpAPI pagination."""
