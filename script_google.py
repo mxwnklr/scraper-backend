@@ -126,8 +126,6 @@ def fetch_review_results(task_id, keywords):
 
                 reviews.append({
                     "Review": review_text,
-                    "Rating": review_rating,
-                    "Matching keywords": matching_keywords,
                     "Date": review_date,
                     "Link to review": review_url,
                 })
