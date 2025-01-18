@@ -49,13 +49,14 @@ async def process_trustpilot(
             content={"error": f"❌ Something went wrong: {str(e)}"}
         )
 
+### **✅ Google Reviews Scraper Endpoint (Google Places + DataForSEO)**
 @app.post("/google")
 async def process_google_reviews(
-    business_name: str = Form(...),
-    include_ratings: str = Form(""),
-    keywords: str = Form(""),
+    business_name: str = Form(...),  # Business Name is REQUIRED
+    include_ratings: str = Form(""),  # Default to empty (optional filter)
+    keywords: str = Form("")  # Default to empty (optional filter)
 ):
-    """Handles Google review scraping requests using DataForSEO"""
+    """Handles Google review scraping requests with optional rating & keyword filters."""
     try:
         print(f"🔍 Searching for place: {business_name} with filters (if any)")
 

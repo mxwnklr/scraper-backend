@@ -3,61 +3,50 @@ import requests
 import pandas as pd
 
 # ✅ Load API credentials from environment variables
+GOOGLE_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 DATAFORSEO_USERNAME = os.getenv("DATAFORSEO_USERNAME")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD")
 
 def get_place_id(business_name):
-    """Retrieve Place ID using DataForSEO (Handles Empty Responses)."""
-    url = "https://api.dataforseo.com/v3/business_data/google/my_business_info/live"
+    """🔍 Retrieve Place ID using Google Places API (More Reliable)."""
     
-    # ✅ Authentication
-    auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
-    
-    # ✅ Request Payload
-    payload = {
-        "data": [{"business_name": business_name}]
+    url = f"https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+    params = {
+        "input": business_name,
+        "inputtype": "textquery",
+        "fields": "place_id,formatted_address",
+        "key": GOOGLE_API_KEY
     }
     
     try:
-        response = requests.post(url, auth=auth, json=payload)
+        response = requests.get(url, params=params)
         response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"❌ API Request Failed: {e}")
-        return None
+        result = response.json()
 
-    result = response.json()
-    print(f"🔎 DataForSEO Response: {result}")  # <-- NEW DEBUG LOG
+        print(f"🔎 Google Places Response: {result}")  # Debugging
 
-    # ✅ Safe Extraction
-    try:
-        if "tasks" not in result or not result["tasks"]:
-            raise ValueError("No tasks found in API response.")
+        if "candidates" not in result or not result["candidates"]:
+            raise ValueError("❌ No result found in Google Places API.")
 
-        first_task = result["tasks"][0]
-
-        if "result" not in first_task or not first_task["result"]:
-            raise ValueError("No result found in API response.")
-
-        place_info = first_task["result"][0]
-
-        # ✅ Extract Place ID (Check if Exists)
-        place_id = place_info.get("place_id")
-        business_address = place_info.get("address", "Unknown Address")
+        place_id = result["candidates"][0].get("place_id")
+        business_address = result["candidates"][0].get("formatted_address", "Unknown Address")
 
         if not place_id:
-            raise ValueError("Place ID is missing in response.")
+            raise ValueError("❌ Place ID is missing in response.")
 
         print(f"✅ Found Place ID: {place_id} for {business_name} ({business_address})")
         return place_id
-    except (KeyError, IndexError, ValueError) as e:
-        print(f"❌ Error extracting Place ID: {e}")
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Google API Request Failed: {e}")
         return None
 
 def get_google_reviews(business_name, include_ratings="", keywords=""):
-    """Retrieve ALL Google reviews using DataForSEO."""
+    """🔄 Fetch ALL Google reviews using DataForSEO."""
+    
     print(f"🔍 Searching for place: {business_name}")
 
-    # ✅ Step 1: Convert Business Name → Place ID
+    # ✅ Step 1: Convert Business Name → Place ID (Using Google Places API)
     place_id = get_place_id(business_name)
     if not place_id:
         print("❌ No valid Place ID found.")
@@ -75,20 +64,21 @@ def get_google_reviews(business_name, include_ratings="", keywords=""):
         response = requests.post(url, auth=auth, json=payload)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print(f"❌ API Request Failed: {e}")
+        print(f"❌ DataForSEO API Request Failed: {e}")
         return None
 
     result = response.json()
+    print(f"📡 DataForSEO Response: {result}")  # Debugging
 
     # ✅ Safe Extraction of Reviews
     try:
         if "tasks" not in result or not result["tasks"]:
-            raise ValueError("No tasks found in API response.")
+            raise ValueError("❌ No tasks found in API response.")
 
         first_task = result["tasks"][0]
 
         if "result" not in first_task or not first_task["result"]:
-            raise ValueError("No result found in API response.")
+            raise ValueError("❌ No result found in API response.")
 
         reviews = first_task["result"][0].get("reviews", [])
 
