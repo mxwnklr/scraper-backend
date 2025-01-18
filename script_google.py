@@ -56,7 +56,7 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
         "se_type": "reviews",
         "place_id": place_id,
         "reviews_limit": 2000,
-        "max_crawl_pages": 10,
+        "max_crawl_pages": 100,
         "depth": 700,
         "filters": filters,  
         "language_code": "de",
