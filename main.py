@@ -90,7 +90,7 @@ async def oauth_callback(request: Request):
 
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
-@app.post("/google/upload")
+@app.post("/google/upload", response_model=None)  # ✅ Explicitly set response_model=None
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
