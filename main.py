@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # ✅ Load Google Client Secret JSON from Environment Variable
-GOOGLE_CLIENT_SECRET_JSON = os.getenv("GOOGLE_CLIENT_SECRET_JSON")
+GOOGLE_CLIENT_SECRET_JSON = os.getenv("/etc/secrets/GOOGLE_CLIENT_SECRET_JSON")
 
 if GOOGLE_CLIENT_SECRET_JSON:
     CLIENT_SECRET_FILE = json.loads(GOOGLE_CLIENT_SECRET_JSON)  # ✅ Parse JSON from env
