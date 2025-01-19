@@ -1,12 +1,11 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, Query
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request as GoogleRequest  # ✅ Fix for token refresh
-
+from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
 
@@ -24,24 +23,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Load Google Client Secret JSON from Secret Files
+# ✅ Load Google Client Secret JSON
 SECRET_FILE_PATH = "/etc/secrets/GOOGLE_CLIENT_SECRET_JSON"
-OAUTH_TOKEN_FILE = "/etc/secrets/OAUTH_TOKENS_JSON"  # ✅ Updated for Render Secrets
+OAUTH_TOKEN_FILE = "/etc/secrets/OAUTH_TOKENS_JSON"
 
 if os.path.exists(SECRET_FILE_PATH):
     with open(SECRET_FILE_PATH, "r") as f:
-        CLIENT_SECRET_FILE = json.load(f)  # ✅ Load JSON from file
+        CLIENT_SECRET_FILE = json.load(f)
 else:
     raise ValueError("❌ GOOGLE_CLIENT_SECRET_JSON is missing from secret files!")
 
 # ✅ Ensure OAuth Token File Exists
 if not os.path.exists(OAUTH_TOKEN_FILE):
     with open(OAUTH_TOKEN_FILE, "w") as f:
-        json.dump({}, f)  # ✅ Initialize with empty JSON
+        json.dump({}, f)
 
 # ✅ OAuth Configuration
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-REDIRECT_URI = "https://trustpilot-scraper.vercel.app/oauth/callback"  # ✅ Set proper redirect URI
+BASE_FRONTEND_URL = "https://trustpilot-scraper.vercel.app"
 
 def save_oauth_token(creds):
     """Save OAuth token and refresh token to a file"""
@@ -61,54 +60,51 @@ def load_oauth_token():
     if os.path.exists(OAUTH_TOKEN_FILE):
         with open(OAUTH_TOKEN_FILE, "r") as f:
             return json.load(f)
-    return None  # No token found
+    return None
 
-def get_google_oauth_flow():
-    """Create OAuth Flow"""
+def get_google_oauth_flow(redirect_uri: str):
+    """Create OAuth Flow with Dynamic Redirect URI"""
     return Flow.from_client_config(
-        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI
+        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
     )
 
 @app.get("/google-login")
-def login(request: Request):
+def login(page: str = Query("google")):
     """Redirects user to Google OAuth for authentication."""
-    path = request.headers.get("Referer", "")  # Detect frontend page
-    if "/trustpilot" in path:
-        redirect_uri = "https://trustpilot-scraper.vercel.app/trustpilot/oauth/callback"
-    else:
-        redirect_uri = "https://trustpilot-scraper.vercel.app/google/oauth/callback"
-
-    flow = Flow.from_client_config(
-        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
-    )
     
+    # ✅ Determine the correct redirect URI dynamically
+    if page == "trustpilot":
+        redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
+    else:
+        redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
+
+    flow = get_google_oauth_flow(redirect_uri)
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-    return RedirectResponse(auth_url)
+    
+    return JSONResponse({"auth_url": auth_url})
 
 @app.get("/oauth/callback")
-async def oauth_callback(request: Request):
+async def oauth_callback(request: Request, page: str = Query("google")):
     """Handles OAuth callback and stores user credentials."""
-    full_url = str(request.url)
     
-    # Determine which frontend path initiated the login
-    if "/trustpilot/oauth/callback" in full_url:
-        redirect_uri = "https://trustpilot-scraper.vercel.app/trustpilot/oauth/callback"
+    # ✅ Determine the correct redirect URI dynamically
+    if page == "trustpilot":
+        redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
     else:
-        redirect_uri = "https://trustpilot-scraper.vercel.app/google/oauth/callback"
+        redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
 
-    flow = Flow.from_client_config(
-        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
-    )
+    flow = get_google_oauth_flow(redirect_uri)
 
-    query_params = full_url.split("?")[1]  # Extract query string
+    # ✅ Extract Google auth response manually
+    query_params = str(request.url).split("?")[1]
     flow.fetch_token(authorization_response=f"{redirect_uri}?{query_params}")
 
     creds = flow.credentials
-    save_oauth_token(creds)
+    save_oauth_token(creds)  # ✅ Save OAuth Token
 
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
-@app.post("/google/upload", response_model=None)  # ✅ Explicitly set response_model=None
+@app.post("/google/upload")
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
@@ -121,8 +117,8 @@ async def upload_to_google_drive():
     # ✅ Refresh token if expired
     if not creds.valid:
         try:
-            creds.refresh(GoogleRequest())  # ✅ Fix for token refresh
-            save_oauth_token(creds)  # ✅ Save updated token
+            creds.refresh(GoogleRequest())
+            save_oauth_token(creds)
         except Exception as e:
             return JSONResponse(status_code=401, content={"error": f"❌ Token refresh failed: {str(e)}"})
 
