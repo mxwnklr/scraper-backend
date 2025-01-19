@@ -43,6 +43,8 @@ if not os.path.exists(OAUTH_TOKEN_FILE):
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 REDIRECT_URI = "https://trustpilot-scraper.vercel.app/oauth/callback"
 
+
+### ✅ **OAuth Helper Functions** ###
 def save_oauth_token(creds):
     """Save OAuth token and refresh token to a file"""
     token_data = {
@@ -56,6 +58,7 @@ def save_oauth_token(creds):
     with open(OAUTH_TOKEN_FILE, "w") as f:
         json.dump(token_data, f)
 
+
 def load_oauth_token():
     """Load OAuth token from a file"""
     if os.path.exists(OAUTH_TOKEN_FILE):
@@ -63,12 +66,15 @@ def load_oauth_token():
             return json.load(f)
     return None  # No token found
 
+
 def get_google_oauth_flow():
     """Create OAuth Flow"""
     return Flow.from_client_config(
         CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI
     )
 
+
+### ✅ **OAuth Endpoints** ###
 @app.get("/google-login")
 def login():
     """Redirects user to Google OAuth for authentication."""
@@ -76,25 +82,29 @@ def login():
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")  # ✅ Request offline access
     return RedirectResponse(auth_url)
 
+
 @app.get("/oauth/callback")
 async def oauth_callback(request: Request):
     """Handles OAuth callback and stores user credentials."""
     flow = get_google_oauth_flow()
-    
-    # ✅ Extract Google auth response manually
-    query_params = str(request.url).split("?")[1]  # Extract query string
-    flow.fetch_token(authorization_response=f"{REDIRECT_URI}?{query_params}")
 
-    creds = flow.credentials
-    save_oauth_token(creds)  # ✅ Save OAuth Token
+    try:
+        # ✅ Extract full URL for correct token fetch
+        flow.fetch_token(authorization_response=str(request.url))
+        creds = flow.credentials
+        save_oauth_token(creds)  # ✅ Save OAuth Token
+        return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
-    return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"❌ OAuth Error: {str(e)}"})
 
-@app.post("/google/upload", response_model=None)  # ✅ Explicitly set response_model=None
+
+### ✅ **Google Drive Upload Endpoint** ###
+@app.post("/google/upload", response_model=None)
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
-    
+
     if not token_data:
         return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
 
@@ -109,7 +119,7 @@ async def upload_to_google_drive():
             return JSONResponse(status_code=401, content={"error": f"❌ Token refresh failed: {str(e)}"})
 
     service = build("drive", "v3", credentials=creds)
-    
+
     # ✅ Check if the file exists before uploading
     file_path = "google_reviews.xlsx"
     if not os.path.exists(file_path):
@@ -118,15 +128,18 @@ async def upload_to_google_drive():
     file_metadata = {"name": "Google Reviews.xlsx"}
     media = MediaFileUpload(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    try:
+        uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"❌ Upload failed: {str(e)}"})
 
-    return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
 
-# ✅ TRUSTPILOT SCRAPER
+### ✅ **Trustpilot Scraper Endpoint** ###
 @app.post("/trustpilot")
 async def process_trustpilot(
     company_url: str = Form(...),
-    keywords: str = Form(""),  
+    keywords: str = Form(""),
     include_ratings: str = Form("")
 ):
     """Processes Trustpilot scraping with better error handling."""
@@ -141,23 +154,24 @@ async def process_trustpilot(
 
         print(f"✅ Successfully scraped reviews: {output_file}")
         return FileResponse(output_file, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="trustpilot_reviews.xlsx")
-    
+
     except Exception as e:
         print(f"❌ Backend Trustpilot Error: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"❌ Internal Server Error: {str(e)}"})
 
-# ✅ GOOGLE REVIEWS SCRAPER
+
+### ✅ **Google Reviews Scraper Endpoint** ###
 @app.post("/google")
 async def process_google_reviews(
     business_name: str = Form(...),
-    address: str = Form(...),  
-    include_ratings: str = Form(""),  
-    keywords: str = Form(""),  
+    address: str = Form(...),
+    include_ratings: str = Form(""),
+    keywords: str = Form(""),
 ):
     """Handles Google review scraping requests with optional rating & keyword filters."""
     try:
         print(f"🔍 Searching for place: {business_name} at {address} with filters (if any)")
-        
+
         output_file = get_google_reviews(business_name, address, include_ratings, keywords)
 
         if output_file is None or not os.path.exists(output_file):
