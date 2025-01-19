@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, Query
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -42,6 +42,12 @@ if not os.path.exists(OAUTH_TOKEN_FILE):
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 BASE_FRONTEND_URL = "https://trustpilot-scraper.vercel.app"
 
+# ✅ Redirect URIs for Trustpilot & Google
+REDIRECT_URIS = {
+    "trustpilot": f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback",
+    "google": f"{BASE_FRONTEND_URL}/google/oauth/callback"
+}
+
 def save_oauth_token(creds):
     """Save OAuth token and refresh token to a file"""
     token_data = {
@@ -73,36 +79,37 @@ def login(page: str = Query("google")):
     """Redirects user to Google OAuth for authentication."""
     
     # ✅ Determine the correct redirect URI dynamically
-    if page == "trustpilot":
-        redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
-    else:
-        redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
+    redirect_uri = REDIRECT_URIS.get(page, REDIRECT_URIS["google"])
 
     flow = get_google_oauth_flow(redirect_uri)
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
     
     return JSONResponse({"auth_url": auth_url})
 
-@app.get("/oauth/callback")
+@app.get("/oauth/callback", response_model=None)
 async def oauth_callback(request: Request, page: str = Query("google")):
-    """Handles OAuth callback and stores user credentials."""
+    """Handles OAuth callback, saves credentials, and closes the tab."""
     
-    # ✅ Determine the correct redirect URI dynamically
-    if page == "trustpilot":
-        redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
-    else:
-        redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
-
+    # ✅ Determine correct redirect URI
+    redirect_uri = REDIRECT_URIS.get(page, REDIRECT_URIS["google"])
+    
     flow = get_google_oauth_flow(redirect_uri)
-
+    
     # ✅ Extract Google auth response manually
-    query_params = str(request.url).split("?")[1]
+    query_params = str(request.url).split("?")[1]  # Extract query string
     flow.fetch_token(authorization_response=f"{redirect_uri}?{query_params}")
 
     creds = flow.credentials
     save_oauth_token(creds)  # ✅ Save OAuth Token
 
-    return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
+    # ✅ Return JavaScript to close the tab and notify the parent window
+    html_content = """
+    <script>
+        window.opener.postMessage("oauth_success", window.origin);
+        window.close();
+    </script>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.post("/google/upload")
 async def upload_to_google_drive():
