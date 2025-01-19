@@ -73,8 +73,9 @@ def get_google_oauth_flow():
 def login():
     """Redirects user to Google OAuth for authentication."""
     flow = get_google_oauth_flow()
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")  # ✅ Request offline access
-    return RedirectResponse(auth_url)
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+
+    return JSONResponse({"auth_url": auth_url})  # ✅ Return URL as JSON
 
 @app.get("/oauth/callback", response_model=None)  # ✅ Fix FastAPI serialization issue
 async def oauth_callback(request: Request):
