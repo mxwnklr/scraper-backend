@@ -70,24 +70,41 @@ def get_google_oauth_flow():
     )
 
 @app.get("/google-login")
-def login():
+def login(request: Request):
     """Redirects user to Google OAuth for authentication."""
-    flow = get_google_oauth_flow()
+    path = request.headers.get("Referer", "")  # Detect frontend page
+    if "/trustpilot" in path:
+        redirect_uri = "https://trustpilot-scraper.vercel.app/trustpilot/oauth/callback"
+    else:
+        redirect_uri = "https://trustpilot-scraper.vercel.app/google/oauth/callback"
+
+    flow = Flow.from_client_config(
+        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
+    )
+    
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    return RedirectResponse(auth_url)
 
-    return JSONResponse({"auth_url": auth_url})  # ✅ Return URL as JSON
-
-@app.get("/oauth/callback", response_model=None)  # ✅ Fix FastAPI serialization issue
+@app.get("/oauth/callback")
 async def oauth_callback(request: Request):
     """Handles OAuth callback and stores user credentials."""
-    flow = get_google_oauth_flow()
+    full_url = str(request.url)
     
-    # ✅ Extract Google auth response manually
-    query_params = str(request.url).split("?")[1]  # Extract query string
-    flow.fetch_token(authorization_response=f"{REDIRECT_URI}?{query_params}")
+    # Determine which frontend path initiated the login
+    if "/trustpilot/oauth/callback" in full_url:
+        redirect_uri = "https://trustpilot-scraper.vercel.app/trustpilot/oauth/callback"
+    else:
+        redirect_uri = "https://trustpilot-scraper.vercel.app/google/oauth/callback"
+
+    flow = Flow.from_client_config(
+        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
+    )
+
+    query_params = full_url.split("?")[1]  # Extract query string
+    flow.fetch_token(authorization_response=f"{redirect_uri}?{query_params}")
 
     creds = flow.credentials
-    save_oauth_token(creds)  # ✅ Save OAuth Token
+    save_oauth_token(creds)
 
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
