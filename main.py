@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Form, Request, Response
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request  # ✅ Fix for token refresh
+from google.auth.transport.requests import Request as GoogleRequest  # ✅ Fix for token refresh
 
 import os
 import json
@@ -26,7 +26,7 @@ app.add_middleware(
 
 # ✅ Load Google Client Secret JSON from Secret Files
 SECRET_FILE_PATH = "/etc/secrets/GOOGLE_CLIENT_SECRET_JSON"
-OAUTH_TOKEN_FILE = "/etc/secrets/OAUTH_TOKENS_JSON"  # ✅ Updated for Render Secrets;
+OAUTH_TOKEN_FILE = "/etc/secrets/OAUTH_TOKENS_JSON"  # ✅ Updated for Render Secrets
 
 if os.path.exists(SECRET_FILE_PATH):
     with open(SECRET_FILE_PATH, "r") as f:
@@ -41,10 +41,8 @@ if not os.path.exists(OAUTH_TOKEN_FILE):
 
 # ✅ OAuth Configuration
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-REDIRECT_URI = "https://trustpilot-scraper.vercel.app/oauth/callback"
+REDIRECT_URI = "https://trustpilot-scraper.vercel.app/oauth/callback"  # ✅ Set proper redirect URI
 
-
-### ✅ **OAuth Helper Functions** ###
 def save_oauth_token(creds):
     """Save OAuth token and refresh token to a file"""
     token_data = {
@@ -58,7 +56,6 @@ def save_oauth_token(creds):
     with open(OAUTH_TOKEN_FILE, "w") as f:
         json.dump(token_data, f)
 
-
 def load_oauth_token():
     """Load OAuth token from a file"""
     if os.path.exists(OAUTH_TOKEN_FILE):
@@ -66,15 +63,12 @@ def load_oauth_token():
             return json.load(f)
     return None  # No token found
 
-
 def get_google_oauth_flow():
     """Create OAuth Flow"""
     return Flow.from_client_config(
         CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI
     )
 
-
-### ✅ **OAuth Endpoints** ###
 @app.get("/google-login")
 def login():
     """Redirects user to Google OAuth for authentication."""
@@ -82,13 +76,11 @@ def login():
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")  # ✅ Request offline access
     return RedirectResponse(auth_url)
 
-
-# ✅ Fix OAuth Callback to Avoid Pydantic Errors
-@app.get("/oauth/callback", response_class=JSONResponse)  # ✅ Explicitly set response_class
+@app.get("/oauth/callback", response_model=None)  # ✅ Fix FastAPI serialization issue
 async def oauth_callback(request: Request):
     """Handles OAuth callback and stores user credentials."""
     flow = get_google_oauth_flow()
-
+    
     # ✅ Extract Google auth response manually
     query_params = str(request.url).split("?")[1]  # Extract query string
     flow.fetch_token(authorization_response=f"{REDIRECT_URI}?{query_params}")
@@ -98,8 +90,7 @@ async def oauth_callback(request: Request):
 
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
-
-@app.post("/google/upload", response_class=JSONResponse)
+@app.post("/google/upload", response_model=None)  # ✅ Explicitly set response_model=None
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
@@ -112,7 +103,7 @@ async def upload_to_google_drive():
     # ✅ Refresh token if expired
     if not creds.valid:
         try:
-            creds.refresh(Request())  # ✅ Fix for token refresh
+            creds.refresh(GoogleRequest())  # ✅ Fix for token refresh
             save_oauth_token(creds)  # ✅ Save updated token
         except Exception as e:
             return JSONResponse(status_code=401, content={"error": f"❌ Token refresh failed: {str(e)}"})
@@ -131,12 +122,11 @@ async def upload_to_google_drive():
 
     return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
 
-
-### ✅ **Trustpilot Scraper Endpoint** ###
+# ✅ TRUSTPILOT SCRAPER
 @app.post("/trustpilot")
 async def process_trustpilot(
     company_url: str = Form(...),
-    keywords: str = Form(""),
+    keywords: str = Form(""),  
     include_ratings: str = Form("")
 ):
     """Processes Trustpilot scraping with better error handling."""
@@ -151,24 +141,23 @@ async def process_trustpilot(
 
         print(f"✅ Successfully scraped reviews: {output_file}")
         return FileResponse(output_file, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="trustpilot_reviews.xlsx")
-
+    
     except Exception as e:
         print(f"❌ Backend Trustpilot Error: {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"❌ Internal Server Error: {str(e)}"})
 
-
-### ✅ **Google Reviews Scraper Endpoint** ###
+# ✅ GOOGLE REVIEWS SCRAPER
 @app.post("/google")
 async def process_google_reviews(
     business_name: str = Form(...),
-    address: str = Form(...),
-    include_ratings: str = Form(""),
-    keywords: str = Form(""),
+    address: str = Form(...),  
+    include_ratings: str = Form(""),  
+    keywords: str = Form(""),  
 ):
     """Handles Google review scraping requests with optional rating & keyword filters."""
     try:
         print(f"🔍 Searching for place: {business_name} at {address} with filters (if any)")
-
+        
         output_file = get_google_reviews(business_name, address, include_ratings, keywords)
 
         if output_file is None or not os.path.exists(output_file):
