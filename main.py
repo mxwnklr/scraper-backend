@@ -70,9 +70,7 @@ def load_oauth_token():
 
 def get_google_oauth_flow(redirect_uri: str):
     """Create OAuth Flow with Dynamic Redirect URI"""
-    return Flow.from_client_config(
-        CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri
-    )
+    return Flow.from_client_config(CLIENT_SECRET_FILE, scopes=SCOPES, redirect_uri=redirect_uri)
 
 @app.get("/google-login")
 def login(page: str = Query("google")):
@@ -86,27 +84,30 @@ def login(page: str = Query("google")):
     
     return JSONResponse({"auth_url": auth_url})
 
-@app.get("/oauth/callback", response_model=None)
-async def oauth_callback(request: Request, page: str = Query("google")):
+@app.get("/oauth/callback")
+async def oauth_callback(request: Request):
     """Handles OAuth callback, saves credentials, and closes the tab."""
+    query_params = request.url.query
+    state = request.query_params.get("state", "")
     
-    # ✅ Determine correct redirect URI
-    redirect_uri = REDIRECT_URIS.get(page, REDIRECT_URIS["google"])
-    
+    # ✅ Determine the redirect URI dynamically
+    if "/trustpilot" in state:
+        redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
+    else:
+        redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
+
     flow = get_google_oauth_flow(redirect_uri)
-    
-    # ✅ Extract Google auth response manually
-    query_params = str(request.url).split("?")[1]  # Extract query string
-    flow.fetch_token(authorization_response=f"{redirect_uri}?{query_params}")
+    flow.fetch_token(authorization_response=str(request.url))
 
-    creds = flow.credentials
-    save_oauth_token(creds)  # ✅ Save OAuth Token
-
-    # ✅ Return JavaScript to close the tab and notify the parent window
+    # ✅ Return JavaScript to notify parent window & close tab
     html_content = """
     <script>
-        window.opener.postMessage("oauth_success", window.origin);
-        window.close();
+        if (window.opener) {
+            window.opener.postMessage("oauth_success", window.origin);
+            window.close();
+        } else {
+            window.location.href = "/";
+        }
     </script>
     """
     return HTMLResponse(content=html_content)
