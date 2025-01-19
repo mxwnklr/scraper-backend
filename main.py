@@ -83,20 +83,19 @@ def login():
     return RedirectResponse(auth_url)
 
 
-@app.get("/oauth/callback")
+@app.get("/oauth/callback", response_model=None)
 async def oauth_callback(request: Request):
     """Handles OAuth callback and stores user credentials."""
     flow = get_google_oauth_flow()
 
-    try:
-        # ✅ Extract full URL for correct token fetch
-        flow.fetch_token(authorization_response=str(request.url))
-        creds = flow.credentials
-        save_oauth_token(creds)  # ✅ Save OAuth Token
-        return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
+    # ✅ Extract Google auth response manually
+    query_params = str(request.url).split("?")[1]  # Extract query string
+    flow.fetch_token(authorization_response=f"{REDIRECT_URI}?{query_params}")
 
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"❌ OAuth Error: {str(e)}"})
+    creds = flow.credentials
+    save_oauth_token(creds)  # ✅ Save OAuth Token
+
+    return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
 
 ### ✅ **Google Drive Upload Endpoint** ###
