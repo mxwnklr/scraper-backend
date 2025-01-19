@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload  # ✅ FIXED: Import for Google Drive Upload
 import os
+import json
+
 from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
-import json
-import tempfile
 
 app = FastAPI()
 
@@ -21,20 +22,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Load Google Client Secret JSON from Environment Variable
-GOOGLE_CLIENT_SECRET_JSON = os.getenv("/etc/secrets/GOOGLE_CLIENT_SECRET_JSON")
+# ✅ Load Google Client Secret JSON from Secret Files (Fixed)
+SECRET_FILE_PATH = "/etc/secrets/GOOGLE_CLIENT_SECRET_JSON"
 
-if GOOGLE_CLIENT_SECRET_JSON:
-    CLIENT_SECRET_FILE = json.loads(GOOGLE_CLIENT_SECRET_JSON)  # ✅ Parse JSON from env
+if os.path.exists(SECRET_FILE_PATH):
+    with open(SECRET_FILE_PATH, "r") as f:
+        CLIENT_SECRET_FILE = json.load(f)  # ✅ Load JSON from file
 else:
-    raise ValueError("❌ GOOGLE_CLIENT_SECRET_JSON is missing from environment variables!")
+    raise ValueError("❌ GOOGLE_CLIENT_SECRET_JSON is missing from secret files!")
 
 # ✅ Define OAuth Scopes
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 REDIRECT_URI = "https://trustpilot-scraper.vercel.app/oauth/callback"
 
-# ✅ Store User OAuth Tokens in Memory (For Testing)
-oauth_tokens = {}
+# ✅ Store OAuth Tokens in a File (Instead of Memory)
+OAUTH_TOKEN_FILE = "oauth_tokens.json"
+
+def save_oauth_token(token_data):
+    """Save OAuth token to a file"""
+    with open(OAUTH_TOKEN_FILE, "w") as f:
+        json.dump(token_data, f)
+
+def load_oauth_token():
+    """Load OAuth token from a file"""
+    if os.path.exists(OAUTH_TOKEN_FILE):
+        with open(OAUTH_TOKEN_FILE, "r") as f:
+            return json.load(f)
+    return None
 
 # ✅ OAuth Flow
 def get_google_oauth_flow():
@@ -57,18 +71,18 @@ async def oauth_callback(request: Request):
     flow.fetch_token(authorization_response=authorization_response)
 
     creds = flow.credentials
-    oauth_tokens["user"] = creds.to_json()  # ✅ Store user token in memory
+    save_oauth_token(creds.to_json())  # ✅ Save user token to file
 
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
 @app.post("/google/upload")
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
-    if "user" not in oauth_tokens:
+    token_data = load_oauth_token()
+    if not token_data:
         return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
 
-    creds = Credentials.from_authorized_user_info(json.loads(oauth_tokens["user"]))
-
+    creds = Credentials.from_authorized_user_info(json.loads(token_data))
     service = build("drive", "v3", credentials=creds)
     
     # ✅ Check if the file exists before uploading
