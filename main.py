@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, Response
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google.oauth2.credentials import Credentials
@@ -83,7 +83,8 @@ def login():
     return RedirectResponse(auth_url)
 
 
-@app.get("/oauth/callback", response_model=None)
+# ✅ Fix OAuth Callback to Avoid Pydantic Errors
+@app.get("/oauth/callback", response_class=JSONResponse)  # ✅ Explicitly set response_class
 async def oauth_callback(request: Request):
     """Handles OAuth callback and stores user credentials."""
     flow = get_google_oauth_flow()
@@ -98,12 +99,11 @@ async def oauth_callback(request: Request):
     return JSONResponse({"message": "✅ Authentication successful! You can now upload files to Google Drive."})
 
 
-### ✅ **Google Drive Upload Endpoint** ###
-@app.post("/google/upload", response_model=None)
+@app.post("/google/upload", response_class=JSONResponse)
 async def upload_to_google_drive():
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
-
+    
     if not token_data:
         return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
 
@@ -118,7 +118,7 @@ async def upload_to_google_drive():
             return JSONResponse(status_code=401, content={"error": f"❌ Token refresh failed: {str(e)}"})
 
     service = build("drive", "v3", credentials=creds)
-
+    
     # ✅ Check if the file exists before uploading
     file_path = "google_reviews.xlsx"
     if not os.path.exists(file_path):
@@ -127,11 +127,9 @@ async def upload_to_google_drive():
     file_metadata = {"name": "Google Reviews.xlsx"}
     media = MediaFileUpload(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    try:
-        uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-        return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"❌ Upload failed: {str(e)}"})
+    uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
+    return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
 
 
 ### ✅ **Trustpilot Scraper Endpoint** ###
