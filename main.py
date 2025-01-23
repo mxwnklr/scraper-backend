@@ -108,9 +108,9 @@ async def oauth_callback(request: Request):
 from fastapi import File, UploadFile
 
 @app.post("/google/upload")
-async def upload_to_google_drive(request: Request, file: UploadFile = File(...)):
+async def upload_to_google_drive(file: UploadFile = File(...)):
     """Uploads the scraped file to Google Drive."""
-    token_data = load_oauth_token(request)
+    token_data = load_oauth_token()  # Remove the request parameter
     
     if not token_data:
         return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
