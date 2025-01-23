@@ -110,20 +110,28 @@ from fastapi import File, UploadFile
 @app.post("/google/upload")
 async def upload_to_google_drive(file: UploadFile = File(...)):
     """Uploads the scraped file to Google Drive."""
-    token_data = load_oauth_token()  # Remove the request parameter
-    
-    if not token_data:
-        return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
+    try:
+        token_data = load_oauth_token()
+        
+        if not token_data:
+            print("No token data found")
+            return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
 
-    creds = Credentials.from_authorized_user_info(token_data)
-
-    # ✅ Refresh token if expired
-    if not creds.valid:
         try:
-            creds.refresh(GoogleRequest())
-            save_oauth_token(creds)
+            creds = Credentials.from_authorized_user_info(token_data)
+            
+            if not creds.valid:
+                if creds.refresh_token:
+                    creds.refresh(GoogleRequest())
+                    save_oauth_token(creds)
+                else:
+                    print("No refresh token available")
+                    return JSONResponse(status_code=401, content={"error": "❌ Authentication expired. Please login again."})
         except Exception as e:
-            return JSONResponse(status_code=401, content={"error": f"❌ Token refresh failed: {str(e)}"})
+            print(f"Error refreshing token: {e}")
+            return JSONResponse(status_code=401, content={"error": "❌ Authentication failed. Please login again."})
+
+        # Rest of your upload code...
 
     service = build("drive", "v3", credentials=creds)
     
