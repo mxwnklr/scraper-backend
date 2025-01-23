@@ -17,7 +17,7 @@ app = FastAPI()
 # ✅ Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://trustpilot-scraper.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,31 +86,24 @@ def login(page: str = Query("google")):
 
 @app.get("/oauth/callback")
 async def oauth_callback(request: Request):
-    """Handles OAuth callback, saves credentials, and closes the tab."""
+    """Handles OAuth callback, saves credentials, and redirects to frontend."""
     query_params = request.url.query
     state = request.query_params.get("state", "")
     
-    # ✅ Determine the redirect URI dynamically
-    if "/trustpilot" in state:
+    # Determine the redirect URI dynamically
+    if "/trustpilot" in str(request.url):
         redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
     else:
         redirect_uri = f"{BASE_FRONTEND_URL}/google/oauth/callback"
 
     flow = get_google_oauth_flow(redirect_uri)
     flow.fetch_token(authorization_response=str(request.url))
-
-    # ✅ Return JavaScript to notify parent window & close tab
-    html_content = """
-    <script>
-        if (window.opener) {
-            window.opener.postMessage("oauth_success", window.origin);
-            window.close();
-        } else {
-            window.location.href = "/";
-        }
-    </script>
-    """
-    return HTMLResponse(content=html_content)
+    
+    # Save the credentials
+    save_oauth_token(flow.credentials)
+    
+    # Redirect to the appropriate frontend callback
+    return RedirectResponse(url=redirect_uri + "?" + query_params)
 
 from fastapi import File, UploadFile
 
