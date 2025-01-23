@@ -8,6 +8,8 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
+from fastapi.middleware.sessions import SessionMiddleware
+import secrets
 
 from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
@@ -48,8 +50,9 @@ REDIRECT_URIS = {
     "google": f"{BASE_FRONTEND_URL}/google/oauth/callback"
 }
 
-def save_oauth_token(creds):
-    """Save OAuth token and refresh token to a file"""
+d# Modify the save_oauth_token function
+def save_oauth_token(creds, request: Request = None):
+    """Save OAuth token and refresh token to both file and session"""
     token_data = {
         "token": creds.token,
         "refresh_token": creds.refresh_token,
@@ -58,11 +61,22 @@ def save_oauth_token(creds):
         "client_secret": creds.client_secret,
         "scopes": creds.scopes,
     }
+    # Save to file
     with open(OAUTH_TOKEN_FILE, "w") as f:
         json.dump(token_data, f)
+    
+    # Save to session if request is provided
+    if request and request.session:
+        request.session["oauth_token"] = token_data
 
-def load_oauth_token():
-    """Load OAuth token from a file"""
+# Modify the load_oauth_token function
+def load_oauth_token(request: Request = None):
+    """Load OAuth token from file or session"""
+    # Try to get from session first
+    if request and request.session and "oauth_token" in request.session:
+        return request.session["oauth_token"]
+    
+    # Fall back to file
     if os.path.exists(OAUTH_TOKEN_FILE):
         with open(OAUTH_TOKEN_FILE, "r") as f:
             return json.load(f)
@@ -90,7 +104,6 @@ async def oauth_callback(request: Request):
     query_params = request.url.query
     state = request.query_params.get("state", "")
     
-    # Determine the redirect URI dynamically
     if "/trustpilot" in str(request.url):
         redirect_uri = f"{BASE_FRONTEND_URL}/trustpilot/oauth/callback"
     else:
@@ -99,18 +112,17 @@ async def oauth_callback(request: Request):
     flow = get_google_oauth_flow(redirect_uri)
     flow.fetch_token(authorization_response=str(request.url))
     
-    # Save the credentials
-    save_oauth_token(flow.credentials)
+    # Save the credentials with session
+    save_oauth_token(flow.credentials, request)
     
-    # Redirect to the appropriate frontend callback
     return RedirectResponse(url=redirect_uri + "?" + query_params)
 
 from fastapi import File, UploadFile
 
 @app.post("/google/upload")
-async def upload_to_google_drive(file: UploadFile = File(...)):
-    """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
-    token_data = load_oauth_token()
+async def upload_to_google_drive(request: Request, file: UploadFile = File(...)):
+    """Uploads the scraped file to Google Drive."""
+    token_data = load_oauth_token(request)
     
     if not token_data:
         return JSONResponse(status_code=401, content={"error": "❌ User not authenticated. Please login first."})
@@ -202,9 +214,9 @@ async def process_google_reviews(
         print(f"❌ Backend Error: {e}")
         return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
 @app.get("/auth-status")
-async def check_auth_status():
+async def check_auth_status(request: Request):
     """Check if the user is authenticated with Google"""
-    token_data = load_oauth_token()
+    token_data = load_oauth_token(request)
     
     if not token_data:
         return {"authenticated": False}
@@ -213,7 +225,7 @@ async def check_auth_status():
         creds = Credentials.from_authorized_user_info(token_data)
         if not creds.valid:
             creds.refresh(GoogleRequest())
-            save_oauth_token(creds)
+            save_oauth_token(creds, request)
         return {"authenticated": True}
     except Exception as e:
         print(f"Error checking auth status: {e}")
