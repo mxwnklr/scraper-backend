@@ -112,8 +112,10 @@ async def oauth_callback(request: Request):
     """
     return HTMLResponse(content=html_content)
 
+from fastapi import File, UploadFile
+
 @app.post("/google/upload")
-async def upload_to_google_drive():
+async def upload_to_google_drive(file: UploadFile = File(...)):
     """Uploads the scraped Google Reviews file to the authenticated user's Google Drive."""
     token_data = load_oauth_token()
     
@@ -132,17 +134,29 @@ async def upload_to_google_drive():
 
     service = build("drive", "v3", credentials=creds)
     
-    # ✅ Check if the file exists before uploading
-    file_path = "google_reviews.xlsx"
-    if not os.path.exists(file_path):
-        return JSONResponse(status_code=404, content={"error": "❌ No file to upload."})
+    # Save uploaded file temporarily
+    temp_file_path = f"uploads/{file.filename}"
+    os.makedirs("uploads", exist_ok=True)
+    
+    with open(temp_file_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
 
-    file_metadata = {"name": "Google Reviews.xlsx"}
-    media = MediaFileUpload(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    try:
+        file_metadata = {"name": file.filename}
+        media = MediaFileUpload(temp_file_path, 
+                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        uploaded_file = service.files().create(body=file_metadata, 
+                                            media_body=media, 
+                                            fields="id").execute()
 
-    return JSONResponse({"message": "✅ File uploaded successfully!", "file_id": uploaded_file["id"]})
+        return JSONResponse({"message": "✅ File uploaded successfully!", 
+                           "file_id": uploaded_file["id"]})
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
 
 # ✅ TRUSTPILOT SCRAPER
 @app.post("/trustpilot")
@@ -194,3 +208,20 @@ async def process_google_reviews(
     except Exception as e:
         print(f"❌ Backend Error: {e}")
         return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
+@app.get("/auth-status")
+async def check_auth_status():
+    """Check if the user is authenticated with Google"""
+    token_data = load_oauth_token()
+    
+    if not token_data:
+        return {"authenticated": False}
+        
+    try:
+        creds = Credentials.from_authorized_user_info(token_data)
+        if not creds.valid:
+            creds.refresh(GoogleRequest())
+            save_oauth_token(creds)
+        return {"authenticated": True}
+    except Exception as e:
+        print(f"Error checking auth status: {e}")
+        return {"authenticated": False}
