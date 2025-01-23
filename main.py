@@ -19,8 +19,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://trustpilot-scraper.vercel.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # ✅ Load Google Client Secret JSON
@@ -78,13 +80,17 @@ def get_google_oauth_flow(redirect_uri: str):
 def login(page: str = Query("google")):
     """Redirects user to Google OAuth for authentication."""
     
-    # ✅ Determine the correct redirect URI dynamically
     redirect_uri = REDIRECT_URIS.get(page, REDIRECT_URIS["google"])
-
     flow = get_google_oauth_flow(redirect_uri)
     auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
     
-    return JSONResponse({"auth_url": auth_url})
+    response = JSONResponse({"auth_url": auth_url})
+    
+    # Add CORS headers explicitly
+    response.headers["Access-Control-Allow-Origin"] = "https://trustpilot-scraper.vercel.app"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 @app.get("/oauth/callback")
 async def oauth_callback(request: Request):
