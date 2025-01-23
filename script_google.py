@@ -52,17 +52,17 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
         filters.append({"text": keywords.split(",")})
 
     payload = [{
-        "se": "google",
-        "se_type": "reviews",
-        "place_id": place_id,
-        "reviews_limit": 2000,
-        "max_crawl_pages": 100,
-        "depth": 700,
-        "filters": filters,  
-        "language_code": "de",
-        "location_name": "Germany",
-        "device": "desktop",
-        "os": "windows"
+    "se": "google",
+    "se_type": "reviews",
+    "place_id": place_id,
+    "reviews_limit": 5000,  # Increased from 2000
+    "max_crawl_pages": 200,  # Increased from 100
+    "depth": 1000,          # Increased from 700
+    "filters": filters,  
+    "language_code": "de",
+    "location_name": "Germany",
+    "device": "desktop",
+    "os": "windows"
     }]
 
     if page_token:
@@ -89,67 +89,84 @@ def submit_review_task(place_id, include_ratings, keywords, page_token=None):
 
 # ✅ Fetch Completed Task Results & Format Output
 def fetch_review_results(task_id, keywords):
-    """Fetches completed review results from DataForSEO and formats them properly."""
     print(f"⏳ Waiting for DataForSEO to process task: {task_id}")
-
     url = f"https://api.dataforseo.com/v3/business_data/google/reviews/task_get/{task_id}"
     auth = (DATAFORSEO_USERNAME, DATAFORSEO_PASSWORD)
-
+    
     reviews = []
-    next_page_token = None
+    max_retries = 10
+    retry_count = 0
 
     while True:
-        time.sleep(5)  
+        time.sleep(5)
+        
+        try:
+            response = requests.get(url, auth=auth)
+            data = response.json()
+            
+            if "tasks" not in data or not data["tasks"]:
+                print("❌ No valid tasks found.")
+                if retry_count < max_retries:
+                    retry_count += 1
+                    continue
+                return None
 
-        response = requests.get(url, auth=auth)
-        data = response.json()
-        # print(f"📡 DataForSEO Task Result: {data}")  
+            task = data["tasks"][0]
+            if task.get("status_code") == 20000 and task.get("result"):
+                result = task["result"][0]
+                
+                # Print total reviews available
+                if "total_count" in result:
+                    print(f"📊 Total reviews available: {result['total_count']}")
+                
+                for item in result.get("items", []):
+                    review_text = item.get("review_text", "")
+                    review_rating = item.get("rating", {}).get("value", "")
+                    review_date = item.get("timestamp", "")
+                    review_url = item.get("review_url", "")
+                    
+                    reviews.append({
+                        "Review": review_text,
+                        "Rating": review_rating,  # Added rating to output
+                        "Date": review_date,
+                        "Link to review": review_url,
+                    })
 
-        if "tasks" not in data or not data["tasks"]:
-            print("❌ No valid tasks found.")
-            return None
-
-        task = data["tasks"][0]
-        if task.get("status_code") == 20000 and task.get("result"):
-            result = task["result"][0]
-
-            for item in result.get("items", []):
-                review_text = item.get("review_text", "")
-                review_rating = item.get("rating", {}).get("value", "")
-                review_date = item.get("timestamp", "")
-                review_url = item.get("review_url", "")
-
-                # ✅ Find matching keywords in the review text
-                matching_keywords = ", ".join(
-                    [kw for kw in keywords.split(",") if kw.lower() in review_text.lower()]
-                ) if keywords else ""
-
-                reviews.append({
-                    "Review": review_text,
-                    "Date": review_date,
-                    "Link to review": review_url,
-                })
-
-            print(f"✅ Scraped {len(reviews)} reviews so far...")
-
-            next_page_token = result.get("next_page_token")  
-
-            if not next_page_token:  
+                print(f"✅ Scraped {len(reviews)} reviews so far...")
+                
+                next_page_token = result.get("next_page_token")
+                if not next_page_token:
+                    print("🏁 No more pages available")
+                    break
+                    
+                print(f"🔄 Fetching next page of reviews...")
+                new_task_id = submit_review_task(result["place_id"], "", "", next_page_token)
+                if new_task_id:
+                    task_id = new_task_id
+                    url = f"https://api.dataforseo.com/v3/business_data/google/reviews/task_get/{task_id}"
+                    retry_count = 0  # Reset retry count for new page
+                else:
+                    print("❌ Failed to get next page")
+                    break
+                    
+            elif task.get("status_code") == 20100:
+                print("⏳ Task still in progress...")
+                time.sleep(3)
+            else:
+                print(f"❌ Task failed: {task.get('status_message')}")
+                if retry_count < max_retries:
+                    retry_count += 1
+                    continue
                 break
+                
+        except Exception as e:
+            print(f"❌ Error fetching reviews: {str(e)}")
+            if retry_count < max_retries:
+                retry_count += 1
+                continue
+            break
 
-            print(f"🔄 Fetching next page of reviews (Token: {next_page_token})")
-            task_id = submit_review_task(result["place_id"], "", "", next_page_token)  
-            if not task_id:
-                break  
-
-        else:
-            print(f"⏳ Task not ready yet, retrying...")
-            time.sleep(3)
-
-    if not reviews:
-        print("❌ Task timed out. No reviews found.")
-        return None
-
+    print(f"🎉 Total reviews collected: {len(reviews)}")
     return reviews
 
 # ✅ Get Google Reviews (Handles Pagination & Formatting)
