@@ -131,6 +131,36 @@ async def upload_to_google_drive(file: UploadFile = File(...)):
             print(f"Error refreshing token: {e}")
             return JSONResponse(status_code=401, content={"error": "❌ Authentication failed. Please login again."})
 
+        service = build("drive", "v3", credentials=creds)
+        
+        # Save uploaded file temporarily
+        temp_file_path = f"uploads/{file.filename}"
+        os.makedirs("uploads", exist_ok=True)
+        
+        with open(temp_file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        try:
+            file_metadata = {"name": file.filename}
+            media = MediaFileUpload(temp_file_path, 
+                                  mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+            uploaded_file = service.files().create(body=file_metadata, 
+                                                media_body=media, 
+                                                fields="id").execute()
+
+            return JSONResponse({"message": "✅ File uploaded successfully!", 
+                               "file_id": uploaded_file["id"]})
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                
+    except Exception as e:
+        print(f"Upload error: {e}")
+        return JSONResponse(status_code=500, content={"error": f"❌ Upload failed: {str(e)}"})
+
         # Rest of your upload code...
 
     service = build("drive", "v3", credentials=creds)
