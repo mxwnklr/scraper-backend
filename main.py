@@ -8,8 +8,6 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
-from fastapi.middleware.sessions import SessionMiddleware
-import secrets
 
 from script_google import get_google_reviews
 from script_trustpilot import run_trustpilot_scraper
@@ -50,9 +48,9 @@ REDIRECT_URIS = {
     "google": f"{BASE_FRONTEND_URL}/google/oauth/callback"
 }
 
-d# Modify the save_oauth_token function
-def save_oauth_token(creds, request: Request = None):
-    """Save OAuth token and refresh token to both file and session"""
+# Modify the save_oauth_token function
+def save_oauth_token(creds):
+    """Save OAuth token to file"""
     token_data = {
         "token": creds.token,
         "refresh_token": creds.refresh_token,
@@ -61,22 +59,12 @@ def save_oauth_token(creds, request: Request = None):
         "client_secret": creds.client_secret,
         "scopes": creds.scopes,
     }
-    # Save to file
     with open(OAUTH_TOKEN_FILE, "w") as f:
         json.dump(token_data, f)
-    
-    # Save to session if request is provided
-    if request and request.session:
-        request.session["oauth_token"] = token_data
 
 # Modify the load_oauth_token function
-def load_oauth_token(request: Request = None):
-    """Load OAuth token from file or session"""
-    # Try to get from session first
-    if request and request.session and "oauth_token" in request.session:
-        return request.session["oauth_token"]
-    
-    # Fall back to file
+def load_oauth_token():
+    """Load OAuth token from file"""
     if os.path.exists(OAUTH_TOKEN_FILE):
         with open(OAUTH_TOKEN_FILE, "r") as f:
             return json.load(f)
@@ -112,8 +100,8 @@ async def oauth_callback(request: Request):
     flow = get_google_oauth_flow(redirect_uri)
     flow.fetch_token(authorization_response=str(request.url))
     
-    # Save the credentials with session
-    save_oauth_token(flow.credentials, request)
+    # Save the credentials
+    save_oauth_token(flow.credentials)
     
     return RedirectResponse(url=redirect_uri + "?" + query_params)
 
@@ -213,10 +201,11 @@ async def process_google_reviews(
     except Exception as e:
         print(f"❌ Backend Error: {e}")
         return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
+
 @app.get("/auth-status")
-async def check_auth_status(request: Request):
+async def check_auth_status():
     """Check if the user is authenticated with Google"""
-    token_data = load_oauth_token(request)
+    token_data = load_oauth_token()
     
     if not token_data:
         return {"authenticated": False}
@@ -225,7 +214,7 @@ async def check_auth_status(request: Request):
         creds = Credentials.from_authorized_user_info(token_data)
         if not creds.valid:
             creds.refresh(GoogleRequest())
-            save_oauth_token(creds, request)
+            save_oauth_token(creds)
         return {"authenticated": True}
     except Exception as e:
         print(f"Error checking auth status: {e}")
