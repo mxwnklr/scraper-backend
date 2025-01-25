@@ -43,16 +43,27 @@ def process_reviews(dataset_items):
     """Process and format reviews from dataset items."""
     reviews_list = []
     for item in dataset_items:
-        if "reviews" in item:
-            for review in item["reviews"]:
-                reviews_list.append({
-                    "Review": review.get("text", ""),
-                    "Rating": review.get("stars", ""),
-                    "Date": review.get("publishedAtDate", ""),
-                    "Author": review.get("name", ""),
-                    "Link to review": review.get("reviewUrl", "")
-                })
+        if "text" in item and "stars" in item and "publishedAtDate" in item and "reviewUrl" in item:
+            reviews_list.append({
+                "Review": item.get("text", ""),
+                "Rating": item.get("stars", ""),
+                "Date": item.get("publishedAtDate", ""),
+                "Link to review": item.get("reviewUrl", "")
+            })
     return reviews_list
+
+def save_reviews_to_excel(reviews):
+    """Save reviews to an Excel file."""
+    try:
+        filename = "google_reviews_formatted.xlsx"
+        df = pd.DataFrame(reviews)
+        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        df.to_excel(filename, index=False)
+        print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
+        return filename
+    except Exception as e:
+        print(f"❌ Error saving to Excel: {str(e)}")
+        return None
 
 def get_reviews_apify(place_id, max_reviews=1000):
     """Fetch reviews using Apify API."""
@@ -121,19 +132,6 @@ def get_reviews_apify(place_id, max_reviews=1000):
             
     except Exception as e:
         print(f"❌ Error in Apify scraping: {str(e)}")
-        return None
-
-def save_reviews_to_excel(reviews):
-    """Save reviews to an Excel file."""
-    try:
-        filename = "google_reviews_formatted.xlsx"
-        df = pd.DataFrame(reviews)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
-        df.to_excel(filename, index=False)
-        print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
-        return filename
-    except Exception as e:
-        print(f"❌ Error saving to Excel: {str(e)}")
         return None
 
 def get_google_reviews(business_name, address=None, include_ratings="", keywords=""):
