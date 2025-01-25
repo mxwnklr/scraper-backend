@@ -229,31 +229,43 @@ async def process_google_reviews(
 ):
     """Handles Google review scraping requests with optional rating & keyword filters."""
     try:
-        print(f"🔍 Searching for place: {business_name} at {address} with filters (if any)")
+        print(f"🔍 Starting Google review scrape for: {business_name}")
         
         output_file = get_google_reviews(business_name, address, include_ratings, keywords)
-
+        
         if output_file is None:
-            error_msg = "❌ No reviews found or error occurred during scraping."
-            print(error_msg)
-            return JSONResponse(
-                status_code=404,  # Changed back to 404 to trigger error handling in frontend
-                content={"error": error_msg}
-            )
-
-        # Check if the file exists and is not empty
-        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
-            error_msg = "❌ No reviews found in the response."
-            print(error_msg)
             return JSONResponse(
                 status_code=404,
-                content={"error": error_msg}
+                content={"error": "❌ No reviews found or error occurred during scraping."}
             )
 
-        return FileResponse(
-            output_file,
+        if not os.path.exists(output_file):
+            return JSONResponse(
+                status_code=500,
+                content={"error": "❌ Error creating output file."}
+            )
+
+        # Check if file is empty or too small
+        if os.path.getsize(output_file) < 100:  # Less than 100 bytes is probably empty
+            return JSONResponse(
+                status_code=404,
+                content={"error": "❌ No reviews found in the response."}
+            )
+
+        # Read file content and return it
+        with open(output_file, 'rb') as file:
+            content = file.read()
+            
+        # Clean up the file after reading
+        os.remove(output_file)
+            
+        return Response(
+            content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename="google_reviews.xlsx"
+            headers={
+                "Content-Disposition": f"attachment; filename=google_reviews.xlsx",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
         )
 
     except Exception as e:
