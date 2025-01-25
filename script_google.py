@@ -60,7 +60,8 @@ def get_reviews_apify(place_id, max_reviews=1000):
             print("❌ Apify run failed to start")
             return None
 
-        print(f"✅ Apify run started with ID: {run['id']}")
+        run_id = run["id"]
+        print(f"✅ Apify run started with ID: {run_id}")
         
         # Wait for the run to finish with a longer timeout
         max_wait_time = 180  # 3 minutes
@@ -71,29 +72,37 @@ def get_reviews_apify(place_id, max_reviews=1000):
                 print("❌ Timeout waiting for Apify results")
                 return None
                 
-            run_info = apify_client.run(run["id"]).get()
+            # Get run status using REST API
+            run_info = apify_client.run(run_id).get()
             status = run_info.get("status")
             
             print(f"🔄 Run status: {status}")
             
             if status == "SUCCEEDED":
-                # Get the dataset items
-                dataset = apify_client.dataset(run["defaultDatasetId"])
-                items = dataset.list_items().items
+                # Get the dataset items using REST API
+                dataset_id = run_info.get("defaultDatasetId")
+                if not dataset_id:
+                    print("❌ No dataset ID found")
+                    return None
+
+                # Fetch all items from the dataset
+                dataset_items = apify_client.dataset(dataset_id).list_items(clean=True).items
                 
-                if not items:
+                if not dataset_items:
                     print("❌ No items found in dataset")
                     return None
                 
                 reviews_list = []
-                for item in items:
+                for item in dataset_items:
                     if "reviews" in item:
-                        reviews_list.extend([{
-                            "Review": review.get("text", ""),
-                            "Rating": review.get("stars", ""),
-                            "Date": review.get("publishedAtDate", ""),
-                            "Link to review": review.get("reviewUrl", "")
-                        } for review in item["reviews"]])
+                        for review in item["reviews"]:
+                            reviews_list.append({
+                                "Review": review.get("text", ""),
+                                "Rating": review.get("stars", ""),
+                                "Date": review.get("publishedAtDate", ""),
+                                "Author": review.get("name", ""),
+                                "Link to review": review.get("reviewUrl", "")
+                            })
                 
                 print(f"✅ Successfully fetched {len(reviews_list)} reviews")
                 return reviews_list if reviews_list else None
