@@ -39,37 +39,59 @@ def get_place_id(business_name, address=None):
         print("❌ Error extracting Place ID: No result found in API response.")
         return None
 
-def get_reviews_apify(place_id, max_reviews=500):
-    """Fetches reviews using Apify's Google Maps Scraper actor"""
+def get_reviews_apify(place_id, max_reviews=1000):
     print(f"📡 Fetching reviews from Apify for Place ID: {place_id}")
     
-    # Configure the actor input
-    run_input = {
-        "placeIds": [place_id],
-        "maxReviews": max_reviews,
-        "language": "de",  # Keep German language
-        "reviewsSort": "newest",  # Get newest reviews first
-        "includeReviewTexts": True,
-        "includeReviewDates": True,
-        "includeReviewRatings": True,
-    }
+    try:
+        run_input = {
+            "placeIds": [place_id],
+            "maxCrawledPlacesPerSearch": 1,
+            "maxReviews": max_reviews,
+            "language": "de",
+            "reviewsSort": "newest",
+            "maxImages": 0
+        }
 
-    # Run the actor and wait for it to finish
-    run = apify_client.actor("compass/google-maps-reviews-scraper").call(run_input=run_input)
-    
-    # Fetch results from the actor's dataset
-    reviews_list = []
-    for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
-        if "reviews" in item:
-            for review in item["reviews"]:
-                reviews_list.append({
-                    "Review": review.get("text", ""),
-                    "Rating": review.get("stars", ""),
-                    "Date": review.get("publishedAtDate", ""),
-                    "Link to review": review.get("reviewUrl", "")
-                })
-    
-    return reviews_list
+        # Start the actor and wait for it to finish
+        print("⏳ Starting Apify actor...")
+        run = apify_client.actor("compass/google-maps-reviews-scraper").call(run_input=run_input)
+        
+        if not run:
+            print("❌ Apify run failed to start")
+            return None
+
+        print(f"✅ Apify run started with ID: {run['id']}")
+        
+        # Wait for the run to finish
+        print("⏳ Waiting for results...")
+        while True:
+            run_info = apify_client.run(run["id"]).get()
+            if run_info["status"] == "SUCCEEDED":
+                break
+            elif run_info["status"] in ["FAILED", "ABORTED", "TIMED-OUT"]:
+                print(f"❌ Apify run failed with status: {run_info['status']}")
+                return None
+            time.sleep(2)  # Wait 2 seconds before checking again
+        
+        # Now fetch the results
+        print("📥 Downloading results...")
+        reviews_list = []
+        for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
+            if "reviews" in item:
+                for review in item["reviews"]:
+                    reviews_list.append({
+                        "Review": review.get("text", ""),
+                        "Rating": review.get("stars", ""),
+                        "Date": review.get("publishedAtDate", ""),
+                        "Link to review": review.get("reviewUrl", "")
+                    })
+        
+        print(f"✅ Successfully fetched {len(reviews_list)} reviews")
+        return reviews_list if reviews_list else None
+        
+    except Exception as e:
+        print(f"❌ Error in Apify scraping: {str(e)}")
+        return None
 
 def get_google_reviews(business_name, address=None, include_ratings="", keywords=""):
     """Main function to fetch Google Reviews using Apify"""
@@ -86,6 +108,8 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
         print("❌ No reviews found.")
         return None
 
+    print(f"🔍 Found {len(reviews)} reviews, applying filters...")
+
     # ✅ Step 3: Filter reviews if needed
     if keywords or include_ratings:
         filtered_reviews = []
@@ -94,7 +118,7 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
         
         for review in reviews:
             # Filter by rating
-            if ratings_filter and int(review["Rating"]) not in ratings_filter:
+            if ratings_filter and int(float(review["Rating"])) not in ratings_filter:
                 continue
                 
             # Filter by keywords
@@ -103,13 +127,20 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
                 
             filtered_reviews.append(review)
         reviews = filtered_reviews
+        print(f"✅ After filtering: {len(reviews)} reviews match criteria")
+
+    if not reviews:
+        print("❌ No reviews match the filter criteria")
+        return None
 
     # ✅ Save reviews to Excel
-    filename = "google_reviews_formatted.xlsx"
-    df = pd.DataFrame(reviews)
-    if not df.empty:
+    try:
+        filename = "google_reviews_formatted.xlsx"
+        df = pd.DataFrame(reviews)
         df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
-    df.to_excel(filename, index=False)
-    
-    print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
-    return filename
+        df.to_excel(filename, index=False)
+        print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
+        return filename
+    except Exception as e:
+        print(f"❌ Error saving to Excel: {str(e)}")
+        return None
