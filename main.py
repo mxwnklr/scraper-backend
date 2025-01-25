@@ -223,9 +223,7 @@ async def process_trustpilot(
 @app.post("/google")
 async def process_google_reviews(
     business_name: str = Form(...),
-    address: str = Form(...),  
-    include_ratings: str = Form(""),  
-    keywords: str = Form(""),  
+    address: str = Form(...)
 ):
     """Handles Google review scraping requests."""
     try:
