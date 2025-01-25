@@ -39,19 +39,34 @@ def get_place_id(business_name, address=None):
         print("❌ Error extracting Place ID: No result found in API response.")
         return None
 
+def process_reviews(dataset_items):
+    """Process and format reviews from dataset items."""
+    reviews_list = []
+    for item in dataset_items:
+        if "reviews" in item:
+            for review in item["reviews"]:
+                reviews_list.append({
+                    "Review": review.get("text", ""),
+                    "Rating": review.get("stars", ""),
+                    "Date": review.get("publishedAtDate", ""),
+                    "Author": review.get("name", ""),
+                    "Link to review": review.get("reviewUrl", "")
+                })
+    return reviews_list
+
 def get_reviews_apify(place_id, max_reviews=1000):
+    """Fetch reviews using Apify API."""
     print(f"📡 Fetching reviews from Apify for Place ID: {place_id}")
     
     try:
+        # Start a new run
         run_input = {
             "placeIds": [place_id],
             "maxReviews": max_reviews,
             "language": "de",
-            "reviewsSort": "newest",
-            "maxImages": 0
+            "reviewsSort": "newest"
         }
 
-        # Start the actor and wait for it to finish
         print("⏳ Starting Apify actor...")
         run = apify_client.actor("compass/google-maps-reviews-scraper").call(run_input=run_input)
         
@@ -63,7 +78,7 @@ def get_reviews_apify(place_id, max_reviews=1000):
         dataset_id = run["defaultDatasetId"]
         print(f"✅ Apify run started with ID: {run_id}")
         
-        # Wait for the run to finish with a longer timeout
+        # Wait for the run to finish
         max_wait_time = 180  # 3 minutes
         wait_start = time.time()
         
@@ -72,14 +87,12 @@ def get_reviews_apify(place_id, max_reviews=1000):
                 print("❌ Timeout waiting for Apify results")
                 return None
                 
-            # Get run status using REST API
             run_info = apify_client.run(run_id).get()
             status = run_info.get("status")
-            
             print(f"🔄 Run status: {status}")
             
             if status == "SUCCEEDED":
-                # Directly fetch results from the Apify API endpoint
+                # Fetch results using dataset ID
                 dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_API_TOKEN}"
                 response = requests.get(dataset_url)
                 
@@ -88,24 +101,15 @@ def get_reviews_apify(place_id, max_reviews=1000):
                     return None
                 
                 dataset_items = response.json()
-                
                 if not dataset_items:
                     print("❌ No items found in dataset")
                     return None
                 
-                reviews_list = []
-                for item in dataset_items:
-                    if "reviews" in item:
-                        for review in item["reviews"]:
-                            reviews_list.append({
-                                "Review": review.get("text", ""),
-                                "Rating": review.get("stars", ""),
-                                "Date": review.get("publishedAtDate", ""),
-                                "Link to review": review.get("reviewUrl", "")
-                            })
-                
-                print(f"✅ Successfully fetched {len(reviews_list)} reviews")
-                return reviews_list if reviews_list else None
+                reviews_list = process_reviews(dataset_items)
+                if reviews_list:
+                    print(f"✅ Successfully fetched {len(reviews_list)} reviews")
+                    return reviews_list
+                return None
                 
             elif status in ["FAILED", "ABORTED", "TIMED-OUT"]:
                 print(f"❌ Run failed with status: {status}")
@@ -118,15 +122,15 @@ def get_reviews_apify(place_id, max_reviews=1000):
         return None
 
 def get_google_reviews(business_name, address=None, include_ratings="", keywords=""):
-    """Main function to fetch Google Reviews using Apify"""
+    """Main function to fetch and filter Google Reviews."""
     
-    # ✅ Step 1: Get Place ID
+    # Get Place ID
     place_id = get_place_id(business_name, address)
     if not place_id:
         print("❌ No valid Place ID found.")
         return None
 
-    # ✅ Step 2: Get reviews from Apify
+    # Get reviews from Apify
     reviews = get_reviews_apify(place_id)
     if not reviews:
         print("❌ No reviews found.")
@@ -134,7 +138,7 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
 
     print(f"🔍 Found {len(reviews)} reviews, applying filters...")
 
-    # ✅ Step 3: Filter reviews if needed
+    # Apply filters if specified
     if keywords or include_ratings:
         filtered_reviews = []
         ratings_filter = [int(r.strip()) for r in include_ratings.split(",")] if include_ratings else []
@@ -157,7 +161,7 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
         print("❌ No reviews match the filter criteria")
         return None
 
-    # ✅ Save reviews to Excel
+    # Save to Excel
     try:
         filename = "google_reviews_formatted.xlsx"
         df = pd.DataFrame(reviews)

@@ -227,54 +227,52 @@ async def process_google_reviews(
     include_ratings: str = Form(""),  
     keywords: str = Form(""),  
 ):
-    """Handles Google review scraping requests with optional rating & keyword filters."""
+    """Handles Google review scraping requests."""
     try:
         print(f"🔍 Starting Google review scrape for: {business_name}")
         
+        # Add CORS headers
+        headers = {
+            "Access-Control-Allow-Origin": "https://trustpilot-scraper.vercel.app",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+        
         output_file = get_google_reviews(business_name, address, include_ratings, keywords)
         
-        if output_file is None:
+        if output_file is None or not os.path.exists(output_file):
             return JSONResponse(
-                status_code=404,
-                content={"error": "❌ No reviews found or error occurred during scraping."}
+                status_code=200,  # Changed from 404
+                content={"error": "❌ No reviews found or error occurred during scraping."},
+                headers=headers
             )
 
-        if not os.path.exists(output_file):
-            return JSONResponse(
-                status_code=500,
-                content={"error": "❌ Error creating output file."}
-            )
-
-        # Check if file is empty or too small
-        if os.path.getsize(output_file) < 100:  # Less than 100 bytes is probably empty
-            return JSONResponse(
-                status_code=404,
-                content={"error": "❌ No reviews found in the response."}
-            )
-
-        # Read file content and return it
-        with open(output_file, 'rb') as file:
-            content = file.read()
-            
-        # Clean up the file after reading
-        os.remove(output_file)
-            
-        return Response(
-            content=content,
+        return FileResponse(
+            output_file,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": f"attachment; filename=google_reviews.xlsx",
-                "Access-Control-Expose-Headers": "Content-Disposition"
-            }
+            filename="google_reviews.xlsx",
+            headers=headers
         )
 
     except Exception as e:
-        error_msg = f"❌ Server error: {str(e)}"
-        print(error_msg)
+        print(f"❌ Server error: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"error": error_msg}
+            content={"error": f"❌ Server error: {str(e)}"},
+            headers=headers
         )
+
+@app.options("/google")
+async def google_options():
+    """Handle OPTIONS request for CORS."""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "https://trustpilot-scraper.vercel.app",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )
 
 @app.get("/auth-status")
 async def check_auth_status():
