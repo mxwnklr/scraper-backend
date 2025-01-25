@@ -174,6 +174,9 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
         print("❌ No reviews match the filter criteria")
         return None
 
+    # Debugging: Print the reviews list to ensure it's correctly structured
+    print(f"📝 Reviews to be saved: {reviews}")
+
     # Save to Excel
     try:
         filename = "google_reviews_formatted.xlsx"
