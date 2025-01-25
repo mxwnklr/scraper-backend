@@ -62,33 +62,48 @@ def get_reviews_apify(place_id, max_reviews=1000):
 
         print(f"✅ Apify run started with ID: {run['id']}")
         
-        # Wait for the run to finish
-        print("⏳ Waiting for results...")
+        # Wait for the run to finish with a longer timeout
+        max_wait_time = 180  # 3 minutes
+        wait_start = time.time()
+        
         while True:
-            run_info = apify_client.run(run["id"]).get()
-            if run_info["status"] == "SUCCEEDED":
-                break
-            elif run_info["status"] in ["FAILED", "ABORTED", "TIMED-OUT"]:
-                print(f"❌ Apify run failed with status: {run_info['status']}")
+            if time.time() - wait_start > max_wait_time:
+                print("❌ Timeout waiting for Apify results")
                 return None
-            time.sleep(2)  # Wait 2 seconds before checking again
-        
-        # Now fetch the results
-        print("📥 Downloading results...")
-        reviews_list = []
-        for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
-            if "reviews" in item:
-                for review in item["reviews"]:
-                    reviews_list.append({
-                        "Review": review.get("text", ""),
-                        "Rating": review.get("stars", ""),
-                        "Date": review.get("publishedAtDate", ""),
-                        "Link to review": review.get("reviewUrl", "")
-                    })
-        
-        print(f"✅ Successfully fetched {len(reviews_list)} reviews")
-        return reviews_list if reviews_list else None
-        
+                
+            run_info = apify_client.run(run["id"]).get()
+            status = run_info.get("status")
+            
+            print(f"🔄 Run status: {status}")
+            
+            if status == "SUCCEEDED":
+                # Get the dataset items
+                dataset = apify_client.dataset(run["defaultDatasetId"])
+                items = dataset.list_items().items
+                
+                if not items:
+                    print("❌ No items found in dataset")
+                    return None
+                
+                reviews_list = []
+                for item in items:
+                    if "reviews" in item:
+                        reviews_list.extend([{
+                            "Review": review.get("text", ""),
+                            "Rating": review.get("stars", ""),
+                            "Date": review.get("publishedAtDate", ""),
+                            "Link to review": review.get("reviewUrl", "")
+                        } for review in item["reviews"]])
+                
+                print(f"✅ Successfully fetched {len(reviews_list)} reviews")
+                return reviews_list if reviews_list else None
+                
+            elif status in ["FAILED", "ABORTED", "TIMED-OUT"]:
+                print(f"❌ Run failed with status: {status}")
+                return None
+                
+            time.sleep(5)  # Wait 5 seconds before checking again
+            
     except Exception as e:
         print(f"❌ Error in Apify scraping: {str(e)}")
         return None

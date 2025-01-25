@@ -237,15 +237,16 @@ async def process_google_reviews(
             error_msg = "❌ No reviews found or error occurred during scraping."
             print(error_msg)
             return JSONResponse(
-                status_code=200,  # Changed from 404 to 200
+                status_code=404,  # Changed back to 404 to trigger error handling in frontend
                 content={"error": error_msg}
             )
 
-        if not os.path.exists(output_file):
-            error_msg = "❌ Error creating output file."
+        # Check if the file exists and is not empty
+        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            error_msg = "❌ No reviews found in the response."
             print(error_msg)
             return JSONResponse(
-                status_code=500,
+                status_code=404,
                 content={"error": error_msg}
             )
 
