@@ -233,8 +233,21 @@ async def process_google_reviews(
         
         output_file = get_google_reviews(business_name, address, include_ratings, keywords)
 
-        if output_file is None or not os.path.exists(output_file):
-            return JSONResponse(status_code=404, content={"error": "❌ No matching reviews found."})
+        if output_file is None:
+            error_msg = "❌ No reviews found or error occurred during scraping."
+            print(error_msg)
+            return JSONResponse(
+                status_code=200,  # Changed from 404 to 200
+                content={"error": error_msg}
+            )
+
+        if not os.path.exists(output_file):
+            error_msg = "❌ Error creating output file."
+            print(error_msg)
+            return JSONResponse(
+                status_code=500,
+                content={"error": error_msg}
+            )
 
         return FileResponse(
             output_file,
@@ -243,8 +256,12 @@ async def process_google_reviews(
         )
 
     except Exception as e:
-        print(f"❌ Backend Error: {e}")
-        return JSONResponse(status_code=500, content={"error": f"❌ Server error: {str(e)}"})
+        error_msg = f"❌ Server error: {str(e)}"
+        print(error_msg)
+        return JSONResponse(
+            status_code=500,
+            content={"error": error_msg}
+        )
 
 @app.get("/auth-status")
 async def check_auth_status():
