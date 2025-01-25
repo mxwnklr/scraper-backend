@@ -148,43 +148,7 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
     if not reviews:
         print("❌ No reviews found.")
         return None
-
-    print(f"🔍 Found {len(reviews)} reviews, applying filters...")
-
-    # Apply filters if specified
-    if keywords or include_ratings:
-        filtered_reviews = []
-        ratings_filter = [int(r.strip()) for r in include_ratings.split(",")] if include_ratings else []
-        keywords_list = [k.strip().lower() for k in keywords.split(",")] if keywords else []
-        
-        for review in reviews:
-            # Filter by rating
-            if ratings_filter and int(float(review["Rating"])) not in ratings_filter:
-                continue
-                
-            # Filter by keywords
-            if keywords_list and not any(kw in review["Review"].lower() for kw in keywords_list):
-                continue
-                
-            filtered_reviews.append(review)
-        reviews = filtered_reviews
-        print(f"✅ After filtering: {len(reviews)} reviews match criteria")
-
-    if not reviews:
-        print("❌ No reviews match the filter criteria")
-        return None
-
-    # Debugging: Print the reviews list to ensure it's correctly structured
-    print(f"📝 Reviews to be saved: {reviews}")
-
-    # Save to Excel
-    try:
-        filename = "google_reviews_formatted.xlsx"
-        df = pd.DataFrame(reviews)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
-        df.to_excel(filename, index=False)
-        print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
-        return filename
-    except Exception as e:
-        print(f"❌ Error saving to Excel: {str(e)}")
-        return None
+s 
+    # Directly save reviews to Excel without filtering
+    print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
+    return save_reviews_to_excel(reviews)
