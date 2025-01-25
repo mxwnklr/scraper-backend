@@ -45,7 +45,6 @@ def get_reviews_apify(place_id, max_reviews=1000):
     try:
         run_input = {
             "placeIds": [place_id],
-            "maxCrawledPlacesPerSearch": 1,
             "maxReviews": max_reviews,
             "language": "de",
             "reviewsSort": "newest",
@@ -61,6 +60,7 @@ def get_reviews_apify(place_id, max_reviews=1000):
             return None
 
         run_id = run["id"]
+        dataset_id = run["defaultDatasetId"]
         print(f"✅ Apify run started with ID: {run_id}")
         
         # Wait for the run to finish with a longer timeout
@@ -79,14 +79,15 @@ def get_reviews_apify(place_id, max_reviews=1000):
             print(f"🔄 Run status: {status}")
             
             if status == "SUCCEEDED":
-                # Get the dataset items using REST API
-                dataset_id = run_info.get("defaultDatasetId")
-                if not dataset_id:
-                    print("❌ No dataset ID found")
+                # Directly fetch results from the Apify API endpoint
+                dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_API_TOKEN}"
+                response = requests.get(dataset_url)
+                
+                if response.status_code != 200:
+                    print(f"❌ Failed to fetch dataset: {response.status_code}")
                     return None
-
-                # Fetch all items from the dataset
-                dataset_items = apify_client.dataset(dataset_id).list_items(clean=True).items
+                
+                dataset_items = response.json()
                 
                 if not dataset_items:
                     print("❌ No items found in dataset")
@@ -100,7 +101,6 @@ def get_reviews_apify(place_id, max_reviews=1000):
                                 "Review": review.get("text", ""),
                                 "Rating": review.get("stars", ""),
                                 "Date": review.get("publishedAtDate", ""),
-                                "Author": review.get("name", ""),
                                 "Link to review": review.get("reviewUrl", "")
                             })
                 
