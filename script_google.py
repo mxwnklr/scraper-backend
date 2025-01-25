@@ -108,8 +108,10 @@ def get_reviews_apify(place_id, max_reviews=1000):
                 reviews_list = process_reviews(dataset_items)
                 if reviews_list:
                     print(f"✅ Successfully fetched {len(reviews_list)} reviews")
-                    return reviews_list
-                return None
+                    return save_reviews_to_excel(reviews_list)
+                else:
+                    print("❌ No reviews found in dataset items")
+                    return None
                 
             elif status in ["FAILED", "ABORTED", "TIMED-OUT"]:
                 print(f"❌ Run failed with status: {status}")
@@ -119,6 +121,19 @@ def get_reviews_apify(place_id, max_reviews=1000):
             
     except Exception as e:
         print(f"❌ Error in Apify scraping: {str(e)}")
+        return None
+
+def save_reviews_to_excel(reviews):
+    """Save reviews to an Excel file."""
+    try:
+        filename = "google_reviews_formatted.xlsx"
+        df = pd.DataFrame(reviews)
+        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        df.to_excel(filename, index=False)
+        print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
+        return filename
+    except Exception as e:
+        print(f"❌ Error saving to Excel: {str(e)}")
         return None
 
 def get_google_reviews(business_name, address=None, include_ratings="", keywords=""):
