@@ -236,7 +236,7 @@ async def process_google_reviews(
             "Access-Control-Allow-Headers": "Content-Type",
         }
         
-        output_file = get_google_reviews(business_name, address, include_ratings, keywords)
+        output_file = get_google_reviews(business_name, address)
         
         if output_file is None or not os.path.exists(output_file):
             return JSONResponse(

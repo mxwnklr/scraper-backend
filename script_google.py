@@ -22,7 +22,7 @@ def get_place_id(business_name, address=None):
     params = {
         "input": input_text,
         "inputtype": "textquery",
-        "fields": "place_id,formatted_address",
+        "fields": "place_id",
         "key": GOOGLE_PLACES_API_KEY
     }
 
@@ -31,13 +31,58 @@ def get_place_id(business_name, address=None):
     print(f"🔎 Google Places Response: {data}")
 
     if data.get("status") == "OK" and data.get("candidates"):
-        place_id = data["candidates"][0]["place_id"]
-        address = data["candidates"][0]["formatted_address"]
-        print(f"✅ Found Place ID: {place_id} for {business_name} ({address})")
-        return place_id
+        return data["candidates"][0]["place_id"]
     else:
         print("❌ Error extracting Place ID: No result found in API response.")
         return None
+
+def fetch_reviews(place_id):
+    """Fetch reviews from Google Places API."""
+    url = f"https://maps.googleapis.com/maps/api/place/details/json"
+    params = {
+        "place_id": place_id,
+        "fields": "reviews",
+        "key": GOOGLE_PLACES_API_KEY
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data.get("result", {}).get("reviews", [])
+
+def save_reviews_to_excel(reviews):
+    """Save reviews to an Excel file."""
+    try:
+        reviews_list = [
+            {
+                "Review": review.get("text", ""),
+                "Rating": review.get("rating", ""),
+                "Date": review.get("time", ""),
+                "Link to review": review.get("author_url", "")
+            }
+            for review in reviews
+        ]
+
+        filename = "google_reviews_formatted.xlsx"
+        df = pd.DataFrame(reviews_list)
+        df.to_excel(filename, index=False)
+        print(f"✅ Successfully saved {len(reviews_list)} reviews to {filename}")
+        return filename
+    except Exception as e:
+        print(f"❌ Error saving to Excel: {str(e)}")
+        return None
+
+def get_google_reviews(business_name, address=None):
+    """Main function to fetch and save Google Reviews."""
+    place_id = get_place_id(business_name, address)
+    if not place_id:
+        return None
+
+    reviews = fetch_reviews(place_id)
+    if not reviews:
+        print("❌ No reviews found.")
+        return None
+
+    return save_reviews_to_excel(reviews)
 
 def process_reviews(dataset_items):
     """Process and format reviews from dataset items."""
