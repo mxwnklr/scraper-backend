@@ -43,7 +43,8 @@ def process_reviews(dataset_items):
     """Process and format reviews from dataset items."""
     reviews_list = []
     for item in dataset_items:
-        if "text" in item and "stars" in item and "publishedAtDate" in item and "reviewUrl" in item:
+        # Ensure the item contains the necessary fields
+        if isinstance(item, dict) and "text" in item and "stars" in item and "publishedAtDate" in item and "reviewUrl" in item:
             reviews_list.append({
                 "Review": item.get("text", ""),
                 "Rating": item.get("stars", ""),
@@ -51,6 +52,25 @@ def process_reviews(dataset_items):
                 "Link to review": item.get("reviewUrl", "")
             })
     return reviews_list
+
+def get_google_reviews(business_name, address=None):
+    """Main function to fetch and filter Google Reviews."""
+    
+    # Get Place ID
+    place_id = get_place_id(business_name, address)
+    if not place_id:
+        print("❌ No valid Place ID found.")
+        return None
+
+    # Get reviews from Apify
+    reviews = get_reviews_apify(place_id)
+    if not reviews:
+        print("❌ No reviews found.")
+        return None
+        
+    # Directly save reviews to Excel without filtering
+    print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
+    return save_reviews_to_excel(reviews)
 
 def save_reviews_to_excel(reviews):
     """Save reviews to an Excel file."""
@@ -139,22 +159,3 @@ def get_reviews_apify(place_id, max_reviews=1000):
     except Exception as e:
         print(f"❌ Error in Apify scraping: {str(e)}")
         return None
-
-def get_google_reviews(business_name, address=None, include_ratings="", keywords=""):
-    """Main function to fetch and filter Google Reviews."""
-    
-    # Get Place ID
-    place_id = get_place_id(business_name, address)
-    if not place_id:
-        print("❌ No valid Place ID found.")
-        return None
-
-    # Get reviews from Apify
-    reviews = get_reviews_apify(place_id)
-    if not reviews:
-        print("❌ No reviews found.")
-        return None
-        
-    # Directly save reviews to Excel without filtering
-    print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
-    return save_reviews_to_excel(reviews)
