@@ -112,6 +112,8 @@ def get_reviews_apify(place_id, max_reviews=1000):
                     return None
                 
                 dataset_items = response.json()
+                print(f"🔍 Dataset items fetched: {len(dataset_items)} items")
+                
                 if not dataset_items:
                     print("❌ No items found in dataset")
                     return None
