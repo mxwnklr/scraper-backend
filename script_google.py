@@ -55,9 +55,13 @@ def process_reviews(dataset_items):
 def save_reviews_to_excel(reviews):
     """Save reviews to an Excel file."""
     try:
+        # Ensure reviews is a list of dictionaries
+        if not isinstance(reviews, list) or not all(isinstance(review, dict) for review in reviews):
+            raise ValueError("Reviews data is not a list of dictionaries")
+
         filename = "google_reviews_formatted.xlsx"
         df = pd.DataFrame(reviews)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
         df.to_excel(filename, index=False)
         print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
         return filename
