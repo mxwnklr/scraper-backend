@@ -148,7 +148,7 @@ def get_google_reviews(business_name, address=None, include_ratings="", keywords
     if not reviews:
         print("❌ No reviews found.")
         return None
-s 
+        
     # Directly save reviews to Excel without filtering
     print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
     return save_reviews_to_excel(reviews)
