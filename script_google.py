@@ -117,13 +117,13 @@ def get_google_reviews(business_name, address=None):
     place_id = get_place_id(business_name, address)
     if not place_id:
         print("❌ No valid Place ID found.")
-        return None
+        return {"error": "No valid Place ID found."}
 
     # Get reviews from Apify
     reviews = get_reviews_apify(place_id)
     if not reviews:
         print("❌ No reviews found.")
-        return None
+        return {"error": "No reviews found."}
         
     # Directly save reviews to Excel without filtering
     print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
