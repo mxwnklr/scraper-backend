@@ -220,6 +220,21 @@ async def process_trustpilot(
         return JSONResponse(status_code=500, content={"error": f"❌ Internal Server Error: {str(e)}"})
 
 # ✅ GOOGLE REVIEWS SCRAPER
+from script_google import get_place_id, get_reviews_apify
+
+app = FastAPI()
+
+# Enable CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://trustpilot-scraper.vercel.app"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
+)
+
 @app.post("/google")
 async def process_google_reviews(
     business_name: str = Form(...),
@@ -229,35 +244,32 @@ async def process_google_reviews(
     try:
         print(f"🔍 Starting Google review scrape for: {business_name}")
         
-        # Add CORS headers
-        headers = {
-            "Access-Control-Allow-Origin": "https://trustpilot-scraper.vercel.app",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        }
-        
-        output_file = get_google_reviews(business_name, address)
-        
-        if output_file is None or not os.path.exists(output_file):
+        place_id = get_place_id(business_name, address)
+        if not place_id:
             return JSONResponse(
-                status_code=200,  # Changed from 404
-                content={"error": "❌ No reviews found or error occurred during scraping."},
-                headers=headers
+                status_code=404,
+                content={"error": "❌ No valid Place ID found."}
             )
 
-        return FileResponse(
-            output_file,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename="google_reviews.xlsx",
-            headers=headers
+        reviews = get_reviews_apify(place_id)
+        if not reviews:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "❌ No reviews found."}
+            )
+
+        # Save reviews to a file or process as needed
+        # For simplicity, returning the number of reviews found
+        return JSONResponse(
+            status_code=200,
+            content={"message": f"✅ Found {len(reviews)} reviews."}
         )
 
     except Exception as e:
         print(f"❌ Server error: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"error": f"❌ Server error: {str(e)}"},
-            headers=headers
+            content={"error": f"❌ Server error: {str(e)}"}
         )
 
 @app.options("/google")
