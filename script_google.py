@@ -101,7 +101,7 @@ def save_reviews_to_excel(reviews):
         if not isinstance(reviews, list) or not all(isinstance(review, dict) for review in reviews):
             raise ValueError("Reviews data is not a list of dictionaries")
 
-        filename = "google_reviews_formatted.xlsx"
+        filename = "google_reviews.xlsx"
         df = pd.DataFrame(reviews)
         df.to_excel(filename, index=False)
         print(f"✅ Successfully saved {len(reviews)} reviews to {filename}")
@@ -127,4 +127,7 @@ def get_google_reviews(business_name, address=None):
         
     # Directly save reviews to Excel without filtering
     print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
-    return save_reviews_to_excel(reviews)
+    filename = save_reviews_to_excel(reviews)
+    
+    # Return the filename for download
+    return {"filename": filename, "review_count": len(reviews)}
