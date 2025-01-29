@@ -9,7 +9,7 @@ from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
 
-from script_google import get_google_reviews, get_place_id, get_reviews_apify
+from script_google import get_place_id, get_reviews_apify, save_reviews_to_excel
 from script_trustpilot import run_trustpilot_scraper
 
 app = FastAPI()
@@ -58,7 +58,7 @@ async def process_google_reviews(
     try:
         print(f"🔍 Starting Google review scrape for: {business_name}")
         
-        result = get_google_reviews(business_name, address)
+        result = save_reviews_to_excel(business_name, address)
         if "error" in result:
             return JSONResponse(
                 status_code=404,
