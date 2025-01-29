@@ -85,9 +85,9 @@ def get_reviews_apify(place_id, max_reviews=1000):
                 reviews = [
                     {
                         "Text": item.get("text"),
-                        "Date": item.get("date"),
-                        "Rating": item.get("rating"),
-                        "Link to Review": item.get("link")
+                        "Date": item.get("publishedAtDate"),
+                        "Rating": item.get("stars"),
+                        "Link to Review": item.get("reviewUrl")
                     }
                     for item in dataset_items
                 ]
