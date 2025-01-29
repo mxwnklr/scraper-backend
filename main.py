@@ -65,7 +65,12 @@ async def process_google_reviews(
                 content={"error": "No reviews found."}
             )
 
-        return FileResponse(filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="google_reviews.xlsx")
+        # Return both filename and review count
+        review_count = pd.read_excel(filename).shape[0]  # Get the number of reviews from the Excel file
+        return JSONResponse(
+            status_code=200,
+            content={"filename": filename, "review_count": review_count}
+        )
 
     except Exception as e:
         print(f"❌ Server error: {str(e)}")
