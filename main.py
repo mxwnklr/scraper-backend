@@ -1,11 +1,6 @@
 from fastapi import FastAPI, Form, Request, Query
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
 import pandas as pd
@@ -60,18 +55,14 @@ async def process_google_reviews(
         print(f"🔍 Starting Google review scrape for: {business_name}")
         
         filename = get_google_reviews(business_name, address)
-        if not filename:
+        if not filename or not os.path.exists(filename):
             return JSONResponse(
                 status_code=404,
                 content={"error": "No reviews found."}
             )
 
-        # Return both filename and review count
-        review_count = pd.read_excel(filename).shape[0]  # Get the number of reviews from the Excel file
-        return JSONResponse(
-            status_code=200,
-            content={"filename": filename, "review_count": review_count}
-        )
+        print(f"✅ Successfully scraped reviews: {filename}")
+        return FileResponse(filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="google_reviews.xlsx")
 
     except Exception as e:
         print(f"❌ Server error: {str(e)}")
