@@ -110,3 +110,25 @@ def save_reviews_to_excel(reviews):
     except Exception as e:
         print(f"❌ Error saving to Excel: {str(e)}")
         return None
+
+def get_google_reviews(business_name, address=None):
+    """Main function to fetch and filter Google Reviews."""
+    
+    # Get Place ID
+    place_id = get_place_id(business_name, address)
+    if not place_id:
+        print("❌ No valid Place ID found.")
+        return {"error": "No valid Place ID found."}
+
+    # Get reviews from Apify
+    reviews = get_reviews_apify(place_id)
+    if not reviews:
+        print("❌ No reviews found.")
+        return {"error": "No reviews found."}
+        
+    # Directly save reviews to Excel without filtering
+    print(f"✅ Found {len(reviews)} reviews, saving to Excel...")
+    filename = save_reviews_to_excel(reviews)
+    
+    # Return the filename for download
+    return {"filename": filename, "review_count": len(reviews)}
