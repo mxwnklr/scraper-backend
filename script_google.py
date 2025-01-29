@@ -71,7 +71,8 @@ def get_reviews_apify(place_id, max_reviews=1000):
             print(f"🔄 Run status: {status}")
             
             if status == "SUCCEEDED":
-                dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_API_TOKEN}"
+                # Use the correct endpoint and parameters to fetch the dataset
+                dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?format=json&clean=1&token={APIFY_API_TOKEN}"
                 response = requests.get(dataset_url)
                 
                 if response.status_code != 200:

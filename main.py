@@ -244,26 +244,15 @@ async def process_google_reviews(
     try:
         print(f"🔍 Starting Google review scrape for: {business_name}")
         
-        place_id = get_place_id(business_name, address)
-        if not place_id:
+        result = get_google_reviews(business_name, address)
+        if "error" in result:
             return JSONResponse(
                 status_code=404,
-                content={"error": "❌ No valid Place ID found."}
+                content={"error": result["error"]}
             )
 
-        reviews = get_reviews_apify(place_id)
-        if not reviews:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "❌ No reviews found."}
-            )
-
-        # Save reviews to a file or process as needed
-        # For simplicity, returning the number of reviews found
-        return JSONResponse(
-            status_code=200,
-            content={"message": f"✅ Found {len(reviews)} reviews."}
-        )
+        filename = result["filename"]
+        return FileResponse(filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="google_reviews.xlsx")
 
     except Exception as e:
         print(f"❌ Server error: {str(e)}")
