@@ -71,7 +71,6 @@ def get_reviews_apify(place_id, max_reviews=1000):
             print(f"🔄 Run status: {status}")
             
             if status == "SUCCEEDED":
-                # Use the correct endpoint and parameters to fetch the dataset
                 dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?format=json&clean=1&token={APIFY_API_TOKEN}"
                 response = requests.get(dataset_url)
                 
@@ -82,8 +81,18 @@ def get_reviews_apify(place_id, max_reviews=1000):
                 dataset_items = response.json()
                 print(f"🔍 Dataset items fetched: {len(dataset_items)} items")
                 
-                # Directly save dataset items to Excel
-                return save_reviews_to_excel(dataset_items)
+                # Extract specific fields and save to Excel
+                reviews = [
+                    {
+                        "Text": item.get("text"),
+                        "Date": item.get("date"),
+                        "Rating": item.get("rating"),
+                        "Link to Review": item.get("link")
+                    }
+                    for item in dataset_items
+                ]
+                
+                return save_reviews_to_excel(reviews)
                 
             elif status in ["FAILED", "ABORTED", "TIMED-OUT"]:
                 print(f"❌ Run failed with status: {status}")
@@ -110,3 +119,21 @@ def save_reviews_to_excel(reviews):
     except Exception as e:
         print(f"❌ Error saving to Excel: {str(e)}")
         return None
+
+def get_google_reviews(business_name, address=None):
+    """Main function to fetch and filter Google Reviews."""
+    
+    # Get Place ID
+    place_id = get_place_id(business_name, address)
+    if not place_id:
+        print("❌ No valid Place ID found.")
+        return None
+
+    # Get reviews from Apify
+    filename = get_reviews_apify(place_id)
+    if not filename:
+        print("❌ No reviews found.")
+        return None
+        
+    print(f"✅ Reviews saved to {filename}")
+    return filename
