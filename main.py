@@ -8,6 +8,7 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request as GoogleRequest
 import os
 import json
+import pandas as pd
 
 from script_google import get_google_reviews, get_place_id, get_reviews_apify
 from script_trustpilot import run_trustpilot_scraper
