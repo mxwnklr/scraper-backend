@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Form, Request, Query
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from openai import router as openai_router
 import os
 import json
 import pandas as pd
@@ -10,7 +11,7 @@ from script_trustpilot import run_trustpilot_scraper
 
 app = FastAPI()
 
-# ✅ Enable CORS for frontend
+# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,6 +21,9 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
+
+# Include OpenAI router
+app.include_router(openai_router)
 
 # ✅ TRUSTPILOT SCRAPER
 @app.post("/trustpilot")
